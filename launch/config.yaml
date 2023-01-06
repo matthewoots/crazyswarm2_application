@@ -1,0 +1,4 @@
+trajectory_parameters:
+  max_velocity: 1.0
+  takeoff_land_velocity: 0.5
+  takeoff_height: 1.0
