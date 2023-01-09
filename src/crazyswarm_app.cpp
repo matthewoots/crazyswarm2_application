@@ -4,7 +4,9 @@ int main(int argc, char *argv[])
 {
     rclcpp::init(argc, argv);
 
-    rclcpp::executors::MultiThreadedExecutor executor;
+    size_t thread_count = 2;
+    rclcpp::executors::MultiThreadedExecutor 
+        executor(rclcpp::ExecutorOptions(), thread_count, false);
     auto node = std::make_shared<cs2::cs2_application>();
     executor.add_node(node);
     executor.spin();
@@ -80,8 +82,13 @@ void cs2::cs2_application::user_callback(
         {
             if (check_queue.size() == copy.uav_id.size())
                 break;
+
+            // get position and distance
+            auto iterator = agents_pose.find(copy.uav_id[i]);
+            if (iterator == agents_pose.end())
+                continue;
             
-            if (is_go_to)
+            if (!is_go_to)
                 for (std::pair<std::string, rclcpp::Client<Land>::SharedPtr> element : land_map) 
                 {
                     if (strcmp(element.first.c_str(), copy.uav_id[i].c_str()) == 0)
@@ -103,10 +110,15 @@ void cs2::cs2_application::user_callback(
                     {
                         RCLCPP_INFO(this->get_logger(), "go_to request for %s", element.first.c_str());
                         auto request = std::make_shared<GoTo::Request>();
-                        double distance = 5.0;
+
+                        double distance = 
+                            (iterator->second.translation() - 
+                            Eigen::Vector3d(copy.goal.x, copy.goal.y, copy.goal.z)).norm();
                         request->group_mask = 0;
                         request->relative = false;
                         request->goal = copy.goal;
+                        request->yaw = copy.yaw;
+
                         request->duration.sec = distance / max_velocity;
                         auto result = element.second->async_send_request(request);
                         check_queue.push(i);
@@ -139,4 +151,21 @@ void cs2::cs2_application::user_callback(
     else
         RCLCPP_ERROR(this->get_logger(), "wrong command type, resend");
 
+}
+
+void cs2::cs2_application::pose_callback(
+    const geometry_msgs::msg::PoseStamped::SharedPtr msg, 
+    std::map<std::string, Eigen::Affine3d>::iterator pose)
+{
+    geometry_msgs::msg::PoseStamped copy = *msg;
+    // Eigen::Vector3d pos = pose.second.translation();
+    // RCLCPP_INFO(this->get_logger(), "(%ld) %lf %lf %lf", pose.first, 
+    //     pos[0], pos[1], pos[2]);
+    pose->second.translation() = 
+        Eigen::Vector3d(copy.pose.position.x, copy.pose.position.y, copy.pose.position.z);
+    Eigen::Quaterniond q = Eigen::Quaterniond(
+        copy.pose.orientation.w, copy.pose.orientation.x,
+        copy.pose.orientation.y, copy.pose.orientation.z);
+    pose->second.linear() = q.toRotationMatrix();
+    
 }

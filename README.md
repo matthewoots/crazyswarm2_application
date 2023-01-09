@@ -20,7 +20,15 @@ ros2 service call '/all/land' \
 'crazyflie_interfaces/srv/Land' \
 '{group_mask: 0, height: 0.0, duration: {sec: 2.0, nanosec: 0}}'
 
-# give takeoff command
-ros2 topic pub /common crazyswarm_application/msg/UserCommand \
-'{cmd: 'takeoff', uav_id: [], goal: {x: 0.0, y: 0.0, z: 0.0}, yaw: 0.0}' --once
+# give takeoff all command
+ros2 topic pub /user crazyswarm_application/msg/UserCommand \
+'{cmd: 'takeoff_all', uav_id: [], goal: {x: 0.0, y: 0.0, z: 0.0}, yaw: 0.0}' --once
+
+# give land all command
+ros2 topic pub /user crazyswarm_application/msg/UserCommand \
+'{cmd: 'land_all', uav_id: [], goal: {x: 0.0, y: 0.0, z: 0.0}, yaw: 0.0}' --once
+
+# give go_to command
+ros2 topic pub /user crazyswarm_application/msg/UserCommand \
+'{cmd: 'goto', uav_id: ['cf1'], goal: {x: 5.0, y: 0.0, z: 1.0}, yaw: 10.0}' --once
 ```

@@ -3,14 +3,17 @@
 #include <regex>
 #include <mutex>
 #include <queue>
+#include <string>
 
-#include <Eigen/Core>
+#include <Eigen/Dense>
 
 #include "crazyflie_interfaces/srv/takeoff.hpp"
 #include "crazyflie_interfaces/srv/land.hpp"
 #include "crazyflie_interfaces/srv/go_to.hpp"
 
 #include "crazyswarm_application/msg/user_command.hpp"
+
+#include "geometry_msgs/msg/pose_stamped.hpp"
 
 #include <rclcpp/rclcpp.hpp>
 
@@ -53,9 +56,30 @@ namespace cs2
 
                     go_to_map.insert({name, this->create_client<GoTo>(name + "/go_to")});
                     land_map.insert({name, this->create_client<Land>(name + "/land")});
+
+                    // std::string str_copy = name;
+                    // // Remove cf from cfXX
+                    // str_copy.erase(0,2);
+
+                    std::vector<double> pos = parameter_overrides.at("robots." + name + ".initial_position").get<std::vector<double>>();
+
+                    Eigen::Affine3d aff;
+                    aff.translation() = Eigen::Vector3d(pos[0], pos[1], pos[2]);
+
+                    // to get the index of string std::stoi(str_copy)
+                    agents_pose.insert(
+                        std::pair<std::string, Eigen::Affine3d>(name, aff));
+
+                    std::function<void(const geometry_msgs::msg::PoseStamped::SharedPtr)> callback = 
+                        std::bind(&cs2_application::pose_callback,
+                        this, std::placeholders::_1, agents_pose.end());
+
+                    pose_map.insert({name, 
+                        this->create_subscription<geometry_msgs::msg::PoseStamped>(name + "/pose", 5, callback)});
                 }
 
-                subscription_user = this->create_subscription<crazyswarm_application::msg::UserCommand>("common", 10, std::bind(&cs2_application::user_callback, this, _1));
+                subscription_user = 
+                    this->create_subscription<crazyswarm_application::msg::UserCommand>("user", 10, std::bind(&cs2_application::user_callback, this, _1));
 
                 takeoff_all_client = this->create_client<Takeoff>("/all/takeoff");
                 land_all_client = this->create_client<Land>("/all/land");
@@ -80,6 +104,8 @@ namespace cs2
             rclcpp::Client<Land>::SharedPtr land_all_client;
             std::map<std::string, rclcpp::Client<GoTo>::SharedPtr> go_to_map;
             std::map<std::string, rclcpp::Client<Land>::SharedPtr> land_map;
+            std::map<std::string, rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr> pose_map;
+            std::map<std::string, Eigen::Affine3d> agents_pose;
 
             rclcpp::Subscription<crazyswarm_application::msg::UserCommand>::SharedPtr subscription_user;
 
@@ -89,5 +115,8 @@ namespace cs2
 
             void user_callback(const crazyswarm_application::msg::UserCommand::SharedPtr msg);
 
+            void pose_callback(
+                const geometry_msgs::msg::PoseStamped::SharedPtr msg, 
+                std::map<std::string, Eigen::Affine3d>::iterator pose);
     };
 }
