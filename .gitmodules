@@ -1,0 +1,3 @@
+[submodule "external/RVO2-3D"]
+	path = external/RVO2-3D
+	url = git@github.com:snape/RVO2-3D.git

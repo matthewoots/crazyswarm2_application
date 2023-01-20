@@ -4,7 +4,7 @@ int main(int argc, char *argv[])
 {
     rclcpp::init(argc, argv);
 
-    size_t thread_count = 2;
+    size_t thread_count = 4;
     rclcpp::executors::MultiThreadedExecutor 
         executor(rclcpp::ExecutorOptions(), thread_count, false);
     auto node = std::make_shared<cs2::cs2_application>();
@@ -33,98 +33,186 @@ std::set<std::string> cs2::cs2_application::extract_names(
 }
 
 void cs2::cs2_application::user_callback(
-    const crazyswarm_application::msg::UserCommand::SharedPtr msg)
+    const UserCommand::SharedPtr msg)
 {
+    RCLCPP_INFO(this->get_logger(), "received command");
     using namespace cs2;
-    crazyswarm_application::msg::UserCommand copy = *msg;
+    UserCommand copy = *msg;
+    string_dictionary dict;
 
-    if (strcmp(copy.cmd.c_str(), takeoff_all.c_str()) == 0 || 
-        strcmp(copy.cmd.c_str(), land_all.c_str()) == 0)
+    // handle goto_velocity
+    if (strcmp(copy.cmd.c_str(), 
+        dict.go_to_velocity.c_str()) == 0)
     {
-        bool is_takeoff_all = strcmp(copy.cmd.c_str(), takeoff_all.c_str()) == 0;
+        for (size_t i = 0; i < copy.uav_id.size(); i++)
+        {           
+            auto iterator_states = agents_states.find(copy.uav_id[i]);
+            if (iterator_states == agents_states.end())
+                continue;
+
+            iterator_states->second.target_queue.push(
+                Eigen::Vector3d(copy.goal.x, copy.goal.y, copy.goal.z)
+            );
+            iterator_states->second.flight_state = MOVE_VELOCITY;
+            iterator_states->second.completed = false;
+        }
+    }
+    // handle takeoff_all and land_all
+    else if (strcmp(copy.cmd.c_str(), dict.takeoff_all.c_str()) == 0 || 
+        strcmp(copy.cmd.c_str(), dict.land_all.c_str()) == 0)
+    {
+        bool is_takeoff_all = 
+            strcmp(copy.cmd.c_str(), dict.takeoff_all.c_str()) == 0;
 
         RCLCPP_INFO(this->get_logger(), "%s", is_takeoff_all ? "takeoff request all" : "land request all");
 
+        auto start = clock.now();
         if (is_takeoff_all)
         {
             auto request = std::make_shared<Takeoff::Request>();
             request->group_mask = 0;
             request->height = takeoff_height;
-            request->duration.sec = takeoff_height / takeoff_land_velocity;
+            
+            double sec = std::floor(takeoff_height / takeoff_land_velocity);
+            double nanosec = (takeoff_height / takeoff_land_velocity - std::floor(takeoff_height / takeoff_land_velocity)) * 1e9;
+
+            request->duration.sec = sec;
+            request->duration.nanosec = nanosec;
+                
             // while (!takeoff_all_client->wait_for_service())
             //     RCLCPP_INFO(this->get_logger(), "service not available, waiting again...");
             
             auto result = takeoff_all_client->async_send_request(request); 
             // auto response = result.get();
+
+            // Iterate through the agents
+            for (auto &[key, agent] : agents_states)
+            {
+                Eigen::Vector3d trans = agent.transform.translation();
+                agent.target_queue.push(
+                    Eigen::Vector3d(trans.x(), trans.y(), takeoff_height)
+                );
+                agent.flight_state = is_takeoff_all ? TAKEOFF : LAND;
+                agent.completed = false;
+            }
         }
         else
         {
             auto request = std::make_shared<Land::Request>();
             request->group_mask = 0;
             request->height = 0.0;
-            request->duration.sec = takeoff_height / takeoff_land_velocity;
+
+            double sec = std::floor(takeoff_height / takeoff_land_velocity);
+            double nanosec = (takeoff_height / takeoff_land_velocity - std::floor(takeoff_height / takeoff_land_velocity)) * 1e9;
+
+            request->duration.sec = sec;
+            request->duration.nanosec = nanosec;
+
             // while (!land_all_client->wait_for_service()) 
             //     RCLCPP_INFO(this->get_logger(), "service not available, waiting again...");
             
             auto result = land_all_client->async_send_request(request);
             // auto response = result.get();
+
+            // Iterate through the agents
+            for (auto &[key, agent] : agents_states)
+            {
+                Eigen::Vector3d trans = agent.transform.translation();
+                agent.target_queue.push(
+                    Eigen::Vector3d(trans.x(), trans.y(), 0.0)
+                );
+                agent.flight_state = is_takeoff_all ? TAKEOFF : LAND;
+                agent.completed = false;
+            }
         }
 
-        RCLCPP_INFO(this->get_logger(), "%s", is_takeoff_all ? "takeoff_all_sent" : "land_all_sent");
+        RCLCPP_INFO(this->get_logger(), "%s (%lfms)", 
+            is_takeoff_all ? "takeoff_all_sent" : "land_all_sent", (clock.now() - start).seconds()*1000.0);
     }
-    else if (strcmp(copy.cmd.c_str(), land.c_str()) == 0 || 
-        strcmp(copy.cmd.c_str(), go_to.c_str()) == 0)
+    // handle land and go_to
+    else if (strcmp(copy.cmd.c_str(), dict.land.c_str()) == 0 || 
+        strcmp(copy.cmd.c_str(), dict.go_to.c_str()) == 0)
     {
-        bool is_go_to = strcmp(copy.cmd.c_str(), go_to.c_str()) == 0;
+        bool is_go_to = strcmp(copy.cmd.c_str(), dict.go_to.c_str()) == 0;
 
         std::queue<int> check_queue;
         for (size_t i = 0; i < copy.uav_id.size(); i++)
         {
-            if (check_queue.size() == copy.uav_id.size())
-                break;
-
             // get position and distance
-            auto iterator = agents_pose.find(copy.uav_id[i]);
-            if (iterator == agents_pose.end())
+            auto iterator = agents_comm.find(copy.uav_id[i]);
+            if (iterator == agents_comm.end())
+                continue;
+            
+            auto iterator_states = agents_states.find(copy.uav_id[i]);
+            if (iterator_states == agents_states.end())
                 continue;
             
             if (!is_go_to)
-                for (std::pair<std::string, rclcpp::Client<Land>::SharedPtr> element : land_map) 
-                {
-                    if (strcmp(element.first.c_str(), copy.uav_id[i].c_str()) == 0)
-                    {
-                        RCLCPP_INFO(this->get_logger(), "land request for %s", element.first.c_str());
-                        auto request = std::make_shared<Land::Request>();
-                        request->group_mask = 0;
-                        request->height = 0.0;
-                        request->duration.sec = takeoff_height / takeoff_land_velocity;
-                        auto result = element.second->async_send_request(request);
-                        check_queue.push(i);
-                        break;
-                    }
-                }
+            {
+                auto start = clock.now();
+                
+                auto request_land = std::make_shared<Land::Request>();
+                request_land->group_mask = 0;
+                request_land->height = 0.0;
+
+                double sec = std::floor(iterator_states->second.transform.translation().z() / takeoff_land_velocity);
+                double nanosec = (iterator_states->second.transform.translation().z() / takeoff_land_velocity - std::floor(iterator_states->second.transform.translation().z() / takeoff_land_velocity)) * 1e9;
+
+                request_land->duration.sec = sec;
+                request_land->duration.nanosec = nanosec;
+
+                auto result_land = 
+                    iterator->second.land->async_send_request(request_land);
+                
+                auto request_group = std::make_shared<SetGroupMask::Request>();
+                request_group->group_mask = 1;
+                auto result_group = 
+                    iterator->second.set_group->async_send_request(request_group);
+                
+                Eigen::Vector3d trans = iterator_states->second.transform.translation();
+                iterator_states->second.target_queue.push(
+                    Eigen::Vector3d(trans.x(), trans.y(), 0.0)
+                );
+                iterator_states->second.flight_state = LAND;
+                iterator_states->second.completed = false;
+
+                RCLCPP_INFO(this->get_logger(), "land sent for %s and changing group_mask (%lfms)", 
+                    iterator->first.c_str(), (clock.now() - start).seconds()*1000.0);
+                
+                check_queue.push(i);
+            }
             else
-                for (std::pair<std::string, rclcpp::Client<GoTo>::SharedPtr> element : go_to_map) 
-                {
-                    if (strcmp(element.first.c_str(), copy.uav_id[i].c_str()) == 0)
-                    {
-                        RCLCPP_INFO(this->get_logger(), "go_to request for %s", element.first.c_str());
-                        auto request = std::make_shared<GoTo::Request>();
+            {
+                auto start = clock.now();
 
-                        double distance = 
-                            (iterator->second.translation() - 
-                            Eigen::Vector3d(copy.goal.x, copy.goal.y, copy.goal.z)).norm();
-                        request->group_mask = 0;
-                        request->relative = false;
-                        request->goal = copy.goal;
-                        request->yaw = copy.yaw;
+                auto request = std::make_shared<GoTo::Request>();
+                double distance = 
+                    (iterator_states->second.transform.translation() - 
+                    Eigen::Vector3d(copy.goal.x, copy.goal.y, copy.goal.z)).norm();
+                request->group_mask = 0;
+                request->relative = false;
+                request->goal = copy.goal;
+                request->yaw = copy.yaw;
 
-                        request->duration.sec = distance / max_velocity;
-                        auto result = element.second->async_send_request(request);
-                        check_queue.push(i);
-                        break;
-                    }
-                }
+                double sec = std::floor(distance / max_velocity);
+                double nanosec = (distance / max_velocity - std::floor(distance / max_velocity)) * 1e9;
+
+                request->duration.sec = sec;
+                request->duration.nanosec = nanosec;
+
+                auto result = 
+                    iterator->second.go_to->async_send_request(request);
+                check_queue.push(i);
+
+                iterator_states->second.target_queue.push(
+                    Eigen::Vector3d(copy.goal.x, copy.goal.y, copy.goal.z)
+                );
+                iterator_states->second.flight_state = MOVE;
+                iterator_states->second.completed = false;
+
+                RCLCPP_INFO(this->get_logger(), "go_to sent for %s (%lfms)", 
+                    iterator->first.c_str(), (clock.now() - start).seconds()*1000.0);
+            }
         }
 
         if (check_queue.size() != copy.uav_id.size())
@@ -154,18 +242,50 @@ void cs2::cs2_application::user_callback(
 }
 
 void cs2::cs2_application::pose_callback(
-    const geometry_msgs::msg::PoseStamped::SharedPtr msg, 
-    std::map<std::string, Eigen::Affine3d>::iterator pose)
+    const PoseStamped::SharedPtr msg, 
+    std::map<std::string, agent_state>::iterator state)
 {
-    geometry_msgs::msg::PoseStamped copy = *msg;
-    // Eigen::Vector3d pos = pose.second.translation();
-    // RCLCPP_INFO(this->get_logger(), "(%ld) %lf %lf %lf", pose.first, 
+    agent_update_mutex.lock();
+
+    PoseStamped copy = *msg;
+    auto pos = state->second.transform.translation();
+    // RCLCPP_INFO(this->get_logger(), "(%s) %lf %lf %lf", state->first.c_str(), 
     //     pos[0], pos[1], pos[2]);
-    pose->second.translation() = 
+    state->second.transform.translation() = 
         Eigen::Vector3d(copy.pose.position.x, copy.pose.position.y, copy.pose.position.z);
     Eigen::Quaterniond q = Eigen::Quaterniond(
         copy.pose.orientation.w, copy.pose.orientation.x,
         copy.pose.orientation.y, copy.pose.orientation.z);
-    pose->second.linear() = q.toRotationMatrix();
+    state->second.transform.linear() = q.toRotationMatrix();
+
+    // check agents_tag_queue and update s_queue
+    std::map<std::string, tag_queue>::iterator it = 
+        agents_tag_queue.find(state->first);
     
+    if (it != agents_tag_queue.end())
+    {
+        if (it->second.s_queue.size() > max_queue_size)
+            it->second.s_queue.pop();
+        it->second.s_queue.push(state->second);
+    }
+
+    state->second.radio_connection = true;
+
+    agent_update_mutex.unlock();
+}
+
+void cs2::cs2_application::twist_callback(
+    const Twist::SharedPtr msg, 
+    std::map<std::string, agent_state>::iterator state)
+{
+    agent_update_mutex.lock();
+
+    Twist copy = *msg;
+    // Eigen::Vector3d pos = pose.second.translation();
+    // RCLCPP_INFO(this->get_logger(), "(%ld) %lf %lf %lf", pose.first, 
+    //     pos[0], pos[1], pos[2]);
+    state->second.velocity = 
+        Eigen::Vector3d(copy.linear.x, copy.linear.y, copy.linear.z);
+    
+    agent_update_mutex.unlock();
 }

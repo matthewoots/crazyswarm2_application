@@ -27,8 +27,8 @@ def generate_launch_description():
     return LaunchDescription([
         Node(
             package='crazyswarm_application',
-            executable='crazyswarm_application_node',
-            name='crazyswarm_application_node',
+            executable='mission_node',
+            name='mission_node',
             output='screen',
             parameters=[crazyflies, config]
         ),

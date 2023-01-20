@@ -1,0 +1,14 @@
+# https://github.com/rgov/apriltag-pdfs
+april_tags:
+  id000:
+    id: 0
+    location: [0.182, 0.1035]
+    purpose: relocalization
+  id001:
+    id: 1
+    location: [0.5825, 0.5035]
+    purpose: relocalization
+  id002:
+    id: 2
+    location: [0.00, 0.00]
+    purpose: eliminate

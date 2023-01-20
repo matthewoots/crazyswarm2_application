@@ -1,4 +1,44 @@
+# command_sequence index
+# [1] command:
+#   1. takeoff = Taking off sequence
+#   2. hold = Wait for certain time
+#   3. goto = Move to location
+#   4. goto_velocity = Move to location with velocity control
+#   5. external = Wait for external command
+#   6. land = Landing sequence
+# [2] to wait before the next command:
+#   1. conc = Go to the next command without waiting for this
+#   2. wait = Wait for this command
+# [3] drone number involved
+#   1. "all"
+#   2. "cfX" = split the cfs by underscore etc "cf1_cf2_cf3"
+#   3. "ext" = external module will give
+# [4] duration (only applicable to hold) in ms
+# [5] pose in XYZ "1 1 1"
+
+command_sequence: [
+  "takeoff", "wait", "all", "", "",
+  "hold", "wait", "all", "7.0", "",
+  "goto_velocity", "wait", "cf1", "", "0 0 1 0.707",
+  "goto_velocity", "wait", "cf1", "", "1 0 1 0.707",
+  "goto_velocity", "wait", "cf1", "", "0 1 1 0.707",
+  # "goto_velocity", "wait", "cf1 cf2", "", "1.2 1.2 1 0.707",
+  # "goto_velocity", "wait", "cf3 cf4", "", "1.2 -1.2 1 0.707",
+  # "goto", "wait", "cf1 cf2", "", "-1 0 1 -0.707",
+  # "goto", "wait", "cf1 cf2", "", "-1 1 1 -0.707",
+  # "goto", "wait", "cf3 cf4", "", "0 1 1 0.707",
+  # "land", "wait", "cf1 cf2", "", "",
+  "land", "wait", "all", "", ""
+]
+# command_sequence: [""]
+queue_size: 20
 trajectory_parameters:
-  max_velocity: 1.0
+  max_velocity: 0.8
+  reached_threshold: 0.15
   takeoff_land_velocity: 0.5
   takeoff_height: 1.0
+april_tag_parameters:
+  # 45 degs pointing downwards
+  camera_rotation: [-0.3826834, 0, 0, 0.9238795] # x,y,z,w
+  time_threshold: 0.100
+  eliminate_threshold: 2.00
