@@ -1,16 +1,45 @@
+# CRAZYSWARM APPLICATION (ROS2)
+
+Crazyswarm application layer, which provides a **path planning layer** to reach desired setpoints, **apriltag detection** for relocalization to global map and on-user commands.
+
+## Environment setup and compile
 ```bash
+mkdir -p crazyswarm2_ws/src
+cd ~/crazyswarm2_ws/src
+
+# git clone these 5 repositories
+git clone git@github.com:matthewoots/apriltag_msgs.git --branch crazyflie
+git clone git@github.com:matthewoots/apriltag_ros.git --branch crazyflie
+git clone git@github.com:matthewoots/crazyswarm2.git --branch crazyflie --recursive
+git clone --branch ros2 --recursive https://github.com/IMRCLab/motion_capture_tracking.git
+git clone git@github.com:matthewoots/crazyswarm2_application.git --recursive
+
+# install other dependencies
+sudo apt-get install -y \
+ros-galactic-apriltag \
+libboost-program-options-dev \
+libusb-1.0-0-dev
+pip3 install rowan
+
+# build
+cd .. # to <workspace-directory>
 # build the crazyswarm environment
 colcon build --symlink-install
 # source the bash file
 source install/setup.bash
 ```
 
+## Launch
 ```bash
-ros2 launch crazyflie launch.py backend:=sim
-ros2 launch crazyswarm_application launch.py
-ros2 launch crazyswarm_application mission.py
+ros2 launch crazyflie launch.py rviz:=none # Real
+ros2 launch crazyflie launch.py backend:=sim rviz:=none # Simulation
+
+ros2 launch crazyswarm_application launch.py # main handler node
+ros2 launch crazyswarm_application mission.py # start mission
+ros2 launch crazyswarm_application rviz.py # visualization
 ```
 
+## Some test commands without crazyswarm_application
 ```bash
 # to give a single drone go to service call without using the node
 ros2 service call '/cf1/go_to' \

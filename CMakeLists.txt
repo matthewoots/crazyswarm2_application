@@ -16,7 +16,9 @@ find_package(std_srvs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(tf2_ros REQUIRED)
 
 find_package(crazyflie_interfaces REQUIRED)
 find_package(motion_capture_tracking_interfaces REQUIRED)
@@ -41,18 +43,28 @@ ament_export_dependencies(rosidl_default_runtime)
 include_directories(
   ${EIGEN3_INCLUDE_DIRS}
   include
+  src/orca
+  external/kdtree
 )
 
-add_executable(${PROJECT_NAME}_node
+set(APPLICATION_SRC
   src/crazyswarm_app.cpp
-  src/april_tag.cpp
-  src/handling_planning.cpp
-)
+  src/handler/april_tag.cpp
+  src/handler/planning.cpp)
 
+set(ORCA_SRC
+  src/orca/agent.cc)
+
+# add application node, including april_tag and planning handler
+add_executable(${PROJECT_NAME}_node
+  ${APPLICATION_SRC} 
+  src/common.cpp
+  ${ORCA_SRC}
+  external/kdtree/kdtree.c
+)
 add_dependencies(${PROJECT_NAME}_node ${PROJECT_NAME})
 rosidl_target_interfaces(${PROJECT_NAME}_node
   ${PROJECT_NAME} "rosidl_typesupport_cpp")
-
 ament_target_dependencies(${PROJECT_NAME}_node
   rclcpp
   sensor_msgs
@@ -62,14 +74,11 @@ ament_target_dependencies(${PROJECT_NAME}_node
   apriltag_msgs
 )
 
-add_executable(mission_node
-  src/mission_node.cpp
-)
-
+# add mission node
+add_executable(mission_node src/mission_node.cpp src/common.cpp)
 add_dependencies(mission_node ${PROJECT_NAME})
 rosidl_target_interfaces(mission_node
   ${PROJECT_NAME} "rosidl_typesupport_cpp")
-
 ament_target_dependencies(mission_node
   rclcpp
   sensor_msgs
@@ -77,16 +86,33 @@ ament_target_dependencies(mission_node
   crazyflie_interfaces
 )
 
+# add visualization node
+add_executable(visualization_node 
+  src/visualization/rviz_visualizer.cpp src/common.cpp)
+add_dependencies(visualization_node ${PROJECT_NAME})
+rosidl_target_interfaces(visualization_node
+  ${PROJECT_NAME} "rosidl_typesupport_cpp")
+ament_target_dependencies(visualization_node
+  rclcpp
+  sensor_msgs
+  std_srvs
+  visualization_msgs
+  crazyflie_interfaces
+  tf2_ros
+)
+
 # Install C++ executables
 install(TARGETS
   ${PROJECT_NAME}_node
   mission_node
+  visualization_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
 # Install launch and config files.
 install(DIRECTORY
   launch
+  meshes
   DESTINATION share/${PROJECT_NAME}/
 )
 

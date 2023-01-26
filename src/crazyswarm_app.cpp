@@ -4,7 +4,7 @@ int main(int argc, char *argv[])
 {
     rclcpp::init(argc, argv);
 
-    size_t thread_count = 4;
+    size_t thread_count = 5;
     rclcpp::executors::MultiThreadedExecutor 
         executor(rclcpp::ExecutorOptions(), thread_count, false);
     auto node = std::make_shared<cs2::cs2_application>();
@@ -13,23 +13,6 @@ int main(int argc, char *argv[])
     rclcpp::shutdown();
     
     return 0;
-}
-
-std::set<std::string> cs2::cs2_application::extract_names(
-    const std::map<std::string, rclcpp::ParameterValue> &parameter_overrides,
-    const std::string &pattern)
-{
-    std::set<std::string> result;
-    for (const auto &i : parameter_overrides)
-    {
-        if (i.first.find(pattern) == 0)
-        {
-            size_t start = pattern.size() + 1;
-            size_t end = i.first.find(".", start);
-            result.insert(i.first.substr(start, end - start));
-        }
-    }
-    return result;
 }
 
 void cs2::cs2_application::user_callback(

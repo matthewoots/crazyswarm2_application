@@ -25,7 +25,10 @@
 #include "geometry_msgs/msg/twist.hpp"
 
 #include <rclcpp/rclcpp.hpp>
-#include "structs.h"
+
+#include "common.h"
+#include "agent.h"
+#include "kdtree.h"
 
 using crazyflie_interfaces::srv::Takeoff;
 using crazyflie_interfaces::srv::Land;
@@ -50,6 +53,10 @@ using std::placeholders::_2;
 
 using namespace std::chrono_literals;
 
+using namespace common;
+
+using namespace RVO;
+
 namespace cs2
 {
     class cs2_application : public rclcpp::Node
@@ -66,6 +73,10 @@ namespace cs2
                 this->declare_parameter("trajectory_parameters.takeoff_land_velocity", -1.0);
                 this->declare_parameter("trajectory_parameters.takeoff_height", -1.0);
                 this->declare_parameter("trajectory_parameters.reached_threshold", -1.0);
+                this->declare_parameter("trajectory_parameters.planning_rate", -1.0);
+                this->declare_parameter("trajectory_parameters.communication_radius", -1.0);
+                this->declare_parameter("trajectory_parameters.protected_zone", -1.0);
+                this->declare_parameter("trajectory_parameters.planning_horizon_scale", -1.0);
 
                 this->declare_parameter("april_tag_parameters.camera_rotation");
                 this->declare_parameter("april_tag_parameters.time_threshold", -1.0);
@@ -82,6 +93,14 @@ namespace cs2
                     this->get_parameter("trajectory_parameters.takeoff_height").get_parameter_value().get<double>();
                 reached_threshold = 
                     this->get_parameter("trajectory_parameters.reached_threshold").get_parameter_value().get<double>();
+                planning_rate = 
+                    this->get_parameter("trajectory_parameters.planning_rate").get_parameter_value().get<double>();
+                communication_radius = 
+                    this->get_parameter("trajectory_parameters.communication_radius").get_parameter_value().get<double>();
+                protected_zone = 
+                    this->get_parameter("trajectory_parameters.protected_zone").get_parameter_value().get<double>();
+                planning_horizon_scale = 
+                    this->get_parameter("trajectory_parameters.planning_horizon_scale").get_parameter_value().get<double>();
 
                 std::vector<double> camera_rotation = 
                     this->get_parameter("april_tag_parameters.camera_rotation").get_parameter_value().get<std::vector<double>>();
@@ -112,9 +131,10 @@ namespace cs2
                 {
                     RCLCPP_INFO(this->get_logger(), "creating agent map for '%s'", name.c_str());
 
-                    // std::string str_copy = name;
-                    // // Remove cf from cfXX
-                    // str_copy.erase(0,2);
+                    std::string str_copy = name;
+                    // Remove cf from cfXX
+                    str_copy.erase(0,2);
+                    int id = std::stoi(str_copy);
 
                     std::vector<double> pos = parameter_overrides.at("robots." + name + ".initial_position").get<std::vector<double>>();
 
@@ -125,6 +145,7 @@ namespace cs2
                     a_s.transform = aff;
                     a_s.flight_state = IDLE;
                     a_s.radio_connection = false;
+                    a_s.completed = false;
 
                     // RCLCPP_INFO(this->get_logger(), "(%s) %lf %lf %lf", name.c_str(), 
                     //     pos[0], pos[1], pos[2]);
@@ -148,28 +169,36 @@ namespace cs2
                     tmp.set_group = this->create_client<SetGroupMask>(name + "/set_group_mask");
                     
                     pose_sub.insert({name, this->create_subscription<PoseStamped>(
-                        name + "/pose", 20, pcallback)});
+                        name + "/pose", 7, pcallback)});
                     vel_sub.insert({name, this->create_subscription<Twist>(
-                        name + "/vel", 20, vcallback)});
+                        name + "/vel", 7, vcallback)});
                     tag_sub.insert({name, this->create_subscription<AprilTagDetectionArray>(
-                        name + "/tag", 20, tcallback)});
+                        name + "/tag", 7, tcallback)});
 
                     tmp.vel_world_publisher = 
                         this->create_publisher<VelocityWorld>(name + "/cmd_velocity_world", 10);
 
                     // RCLCPP_INFO(this->get_logger(), "%lf", (--agents_states.end())->second.transform(0,0));
+                    tag_queue empty = tag_queue();
 
+                    agents_tag_queue.insert({name, empty});
                     agents_comm.insert({name, tmp});
+                
+                    Agent new_rvo2_agent = Agent(
+                        id, (float)(1/planning_rate), 10, (float)max_velocity, 
+                        (float)communication_radius, (float)protected_zone, 
+                        (float)(planning_horizon_scale * 1/planning_rate));
+                    rvo_agents.insert({name, new_rvo2_agent});
                 }
 
                 pose_publisher = 
-                    this->create_publisher<NamedPoseArray>("poses", 10);
+                    this->create_publisher<NamedPoseArray>("poses", 7);
                 
                 agent_state_publisher = 
-                    this->create_publisher<AgentsStateFeedback>("agents", 10);
+                    this->create_publisher<AgentsStateFeedback>("agents", 7);
 
                 subscription_user = 
-                    this->create_subscription<UserCommand>("user", 10, std::bind(&cs2_application::user_callback, this, _1));
+                    this->create_subscription<UserCommand>("user", 7, std::bind(&cs2_application::user_callback, this, _1));
 
                 takeoff_all_client = this->create_client<Takeoff>("/all/takeoff");
                 land_all_client = this->create_client<Land>("/all/land");
@@ -177,8 +206,9 @@ namespace cs2
                 tag_timer = this->create_wall_timer(
                     200ms, std::bind(&cs2_application::tag_timer_callback, this));
 
+                auto t_planning = (1/planning_rate) * 1000ms;
                 handler_timer = this->create_wall_timer(
-                    200ms, std::bind(&cs2_application::handler_timer_callback, this));
+                    t_planning, std::bind(&cs2_application::handler_timer_callback, this));
 
                 RCLCPP_INFO(this->get_logger(), "end_constructor");
 
@@ -193,6 +223,10 @@ namespace cs2
             double takeoff_land_velocity;
             double takeoff_height;
             double reached_threshold;
+            double planning_rate;
+            double communication_radius;
+            double protected_zone;
+            double planning_horizon_scale;
             // threshold parameters
             double time_threshold;
             double eliminate_threshold;
@@ -213,6 +247,7 @@ namespace cs2
 
             std::map<int, std::string> april_eliminate;
             std::map<int, Eigen::Vector2d> april_relocalize;
+            std::map<std::string, Agent> rvo_agents;
 
             rclcpp::TimerBase::SharedPtr planning_timer;
             rclcpp::TimerBase::SharedPtr tag_timer;
@@ -223,16 +258,15 @@ namespace cs2
 
             rclcpp::Clock clock;
 
+            kdtree *kd_tree;
+
             rclcpp::Subscription<UserCommand>::SharedPtr subscription_user;
 
             rclcpp::Publisher<NamedPoseArray>::SharedPtr pose_publisher;
             rclcpp::Publisher<AgentsStateFeedback>::SharedPtr agent_state_publisher;
 
-            std::set<std::string> extract_names(
-                const std::map<std::string, rclcpp::ParameterValue> &parameter_overrides,
-                const std::string &pattern);
-
-            void conduct_planning();
+            void conduct_planning(
+                Eigen::Vector3d &desired, std::string mykey, agent_state state);
 
             void user_callback(const UserCommand::SharedPtr msg);
 

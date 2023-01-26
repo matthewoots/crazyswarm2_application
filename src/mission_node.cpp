@@ -13,7 +13,7 @@
 #include "crazyswarm_application/msg/agent_state.hpp"
 
 #include <rclcpp/rclcpp.hpp>
-#include "structs.h"
+#include "common.h"
 
 using crazyswarm_application::msg::UserCommand;
 using crazyswarm_application::msg::AgentsStateFeedback;
@@ -24,8 +24,38 @@ using std::placeholders::_2;
 
 using namespace std::chrono_literals;
 
+using namespace common;
+
 class mission_handler : public rclcpp::Node
 {
+    private:
+
+        rclcpp::Clock clock;
+
+        struct commander
+        {
+            std::string task;
+            std::string cont; // continuity
+            std::vector<std::string> agents; 
+            Eigen::Vector4d target;
+            double duration; // s
+            bool sent_mission;
+        };
+
+        string_dictionary dict;
+        
+        std::queue<commander> command_sequence;
+
+        std::vector<commander> command_buffer;
+
+        rclcpp::Time last_mission_time;
+
+        rclcpp::Publisher<UserCommand>::SharedPtr command_publisher;
+
+        rclcpp::Subscription<AgentsStateFeedback>::SharedPtr agent_state_subscription;
+
+        std::map<std::string, agent_state> agents_description;
+
     public:
 
         // uint8 IDLE = 0 # Have not taken off
@@ -100,6 +130,7 @@ class mission_handler : public rclcpp::Node
                 else
                     cmd.target = Eigen::Vector4d::Zero();
                     
+                cmd.sent_mission = false;
 
                 command_sequence.push(cmd);
 
@@ -110,10 +141,10 @@ class mission_handler : public rclcpp::Node
             }
 
             command_publisher = 
-                this->create_publisher<UserCommand>("user", 10);
+                this->create_publisher<UserCommand>("user", 5);
             agent_state_subscription = 
                 this->create_subscription<AgentsStateFeedback>("agents", 
-                10, std::bind(&mission_handler::agent_event_callback, this, _1));
+                2, std::bind(&mission_handler::agent_event_callback, this, _1));
 
             // load crazyflies from params
             auto node_parameters_iface = this->get_node_parameters_interface();
@@ -135,23 +166,6 @@ class mission_handler : public rclcpp::Node
             }
 
             RCLCPP_INFO(this->get_logger(), "end_constructor");
-        }
-
-        std::set<std::string> extract_names(
-            const std::map<std::string, rclcpp::ParameterValue> &parameter_overrides,
-            const std::string &pattern)
-        {
-            std::set<std::string> result;
-            for (const auto &i : parameter_overrides)
-            {
-                if (i.first.find(pattern) == 0)
-                {
-                    size_t start = pattern.size() + 1;
-                    size_t end = i.first.find(".", start);
-                    result.insert(i.first.substr(start, end - start));
-                }
-            }
-            return result;
         }
 
         void agent_event_callback(const AgentsStateFeedback::SharedPtr msg)
@@ -189,79 +203,66 @@ class mission_handler : public rclcpp::Node
             // if all are not connected do not continue the task
             if (all_connected != agents_description.size())
                 return;
+
+            // command handler
+            if (!command_buffer.empty())
+            {
+                size_t success_count = 0;
+                for (auto cmd = std::begin(command_buffer); 
+                    cmd != std::end(command_buffer); ++cmd) 
+                {
+                    // check for hold command
+                    if (strcmp(cmd->task.c_str(), dict.hold.c_str()) == 0)
+                    {
+                        double duration_seconds = (clock.now() - last_mission_time).seconds();
+                        if (cmd->duration < duration_seconds)
+                        {
+                            RCLCPP_INFO(this->get_logger(), "waiting over %.3lf/%.3lfs", 
+                                duration_seconds, cmd->duration);
+                            success_count++;
+                        }
+                        else 
+                        {
+                            RCLCPP_INFO(this->get_logger(), "waiting %.3lf/%.3lfs", 
+                                duration_seconds, cmd->duration);
+                            return;
+                        }
+                    }
+                    else
+                        if (check_completed_agents(cmd))
+                            success_count++;
+                }
+
+                RCLCPP_INFO(this->get_logger(), "success %ld/%ld", 
+                    success_count, command_buffer.size());
+                if (success_count == command_buffer.size())
+                {
+                    last_mission_time = clock.now();
+                    command_buffer.clear();
+                }
+            }
             
             // if all have completed the task move to the next task
             // check whether the agents inside the command sequence are completed
-            bool check_complete;
-            if (strcmp(command_sequence.front().task.c_str(), dict.hold.c_str()) != 0)
+            if (command_buffer.empty() && !command_sequence.empty())
             {
-                if (strcmp(command_sequence.front().agents[0].c_str(), dict.all.c_str()) == 0)
+                while (!command_sequence.empty())
                 {
-                    // check all agents
-                    for (auto &[key, state] : agents_description)
+                    // empty string or task rejection
+                    if (command_sequence.front().task.empty())
+                        command_sequence.pop();
+                    else
                     {
-                        if (!state.completed)
-                        {
-                            check_complete = false;
-                            break;
-                        }
-                        else
-                            check_complete = true;
-                    }
-                }
-                else
-                {
-                    for (auto &agent : command_sequence.front().agents)
-                    {
-                        auto iterator = agents_description.find(agent);
-                        if (iterator == agents_description.end())
-                            continue;
-                        
-                        if (!(iterator->second.completed))
-                        {
-                            check_complete = false;
-                            break;
-                        }
-                        else
-                            check_complete = true;
-                    }
-                }
-
-                if (check_complete)
-                {
-                    command_sequence.pop();
-                    completed_send_mission_task = false;
-                }
-            }
-
-            // check for the next command, if there is any error, erase it and move on
-            if (!command_sequence.empty())
-                // conduct empty string rejection
-                if (command_sequence.front().task.empty())
-                    command_sequence.pop();
-
-            double duration_seconds = (clock.now() - last_mission_time).seconds();
-            if (!command_sequence.empty())
-            {
-                if (strcmp(command_sequence.front().task.c_str(), dict.hold.c_str()) == 0)
-                {
-                    if (command_sequence.front().duration < duration_seconds)
-                    {
-                        RCLCPP_INFO(this->get_logger(), "waiting over %.3lf/%.3lfs", 
-                            duration_seconds, command_sequence.front().duration);
+                        command_buffer.emplace_back(command_sequence.front());
                         command_sequence.pop();
                     }
-                    else 
-                    {
-                        RCLCPP_INFO(this->get_logger(), "waiting %.3lf/%.3lfs", 
-                            duration_seconds, command_sequence.front().duration);
-                        return;
-                    }
+                    if (strcmp(command_buffer.back().cont.c_str(), dict.wait.c_str()) == 0)
+                        break;
                 }
             }
 
-            // if empty sequence left, end the node
-            if (command_sequence.empty())
+            // if empty sequence and buffer left, end the node
+            if (command_buffer.empty() && command_sequence.empty())
             {
                 // close the mission node when we have finished
                 RCLCPP_INFO(this->get_logger(), "It's been a long day without you, my friend");
@@ -270,69 +271,38 @@ class mission_handler : public rclcpp::Node
                 return;
             }
 
-            // if task is already sent, do not send again
-            if (completed_send_mission_task)
-                return;
-
-            if (command_sequence.front().agents.empty())
-                throw std::invalid_argument("empty agent list");
-
-            // "takeoff"
-            if (strcmp(command_sequence.front().task.c_str(), 
-                dict.takeoff.c_str()) == 0) 
+            for (auto cmd = std::begin(command_buffer); 
+                cmd != std::end(command_buffer); ++cmd) 
             {
-                // "all"
-                if (strcmp(command_sequence.front().agents[0].c_str(), dict.all.c_str()) == 0)
-                {
-                    UserCommand command;
-                    command.cmd = "takeoff_all";
-                    command_publisher->publish(command);
-                    completed_send_mission_task = true;
-                    RCLCPP_INFO(this->get_logger(), "Sent %s takeoff", 
-                        command_sequence.front().agents[0].c_str());
-                    last_mission_time = clock.now();
-                    return;
-                }
-                // individual
-                UserCommand command;
-                command.cmd = "takeoff";
-                std::string acc_id;
-                for (auto &agent : command_sequence.front().agents)
-                {
-                    std::map<std::string, agent_state>::iterator it = 
-                        agents_description.find(agent);
-                    
-                    if (it == agents_description.end())
-                        continue;
-                    
-                    command.uav_id.push_back(it->first);
-                    acc_id += it->first;
-                }
-                
-                command_publisher->publish(command);
-                completed_send_mission_task = true;
-                RCLCPP_INFO(this->get_logger(), "Sent %s takeoff", acc_id.c_str());
-                last_mission_time = clock.now();
-            }
-            // "goto_velocity"
-            else if(strcmp(command_sequence.front().task.c_str(), 
-                dict.go_to_velocity.c_str()) == 0)
-            {
-                UserCommand command;
-                command.cmd = "goto_velocity";
-                std::string acc_id;
+                // if task is already sent, do not send again
+                if (cmd->sent_mission)
+                    continue;
 
-                // "all"
-                if (strcmp(command_sequence.front().agents[0].c_str(), dict.all.c_str()) == 0) 
-                    for (auto &[key, state] : agents_description)
+                if (cmd->agents.empty())
+                    throw std::invalid_argument("empty agent list");
+
+                // "takeoff"
+                if (strcmp(cmd->task.c_str(), dict.takeoff.c_str()) == 0) 
+                {
+                    // "all"
+                    if (strcmp(cmd->agents[0].c_str(), dict.all.c_str()) == 0)
                     {
-                        command.uav_id.push_back(key);
-                        acc_id += key;
+                        UserCommand command;
+                        command.cmd = "takeoff_all";
+                        command_publisher->publish(command);
+
+                        cmd->sent_mission = true;
+
+                        RCLCPP_INFO(this->get_logger(), "Sent %s takeoff", 
+                            cmd->agents[0].c_str());
+                        return;
                     }
-                // "individual"
-                else
-                {
-                    for (auto &agent : command_sequence.front().agents)
+
+                    // individual
+                    UserCommand command;
+                    command.cmd = "takeoff";
+                    std::string acc_id;
+                    for (auto &agent : cmd->agents)
                     {
                         std::map<std::string, agent_state>::iterator it = 
                             agents_description.find(agent);
@@ -343,39 +313,119 @@ class mission_handler : public rclcpp::Node
                         command.uav_id.push_back(it->first);
                         acc_id += it->first;
                     }
-                }
                     
-                command.goal.x = command_sequence.front().target[0];
-                command.goal.y = command_sequence.front().target[1];
-                command.goal.z = command_sequence.front().target[2];
-                command.yaw = command_sequence.front().target[3];
-                
-                command_publisher->publish(command);
-                completed_send_mission_task = true;
-                RCLCPP_INFO(this->get_logger(), "Sent %s goto_velocity", 
-                    acc_id.c_str());
-                last_mission_time = clock.now();
-                
-            }
-            // "goto"
-            else if(strcmp(command_sequence.front().task.c_str(), 
-                dict.go_to.c_str()) == 0)
-            {
-                UserCommand command;
-                command.cmd = "goto";
-                std::string acc_id;
+                    command_publisher->publish(command);
+                    cmd->sent_mission = true;
 
-                // "all"
-                if (strcmp(command_sequence.front().agents[0].c_str(), dict.all.c_str()) == 0) 
-                    for (auto &[key, state] : agents_description)
-                    {
-                        command.uav_id.push_back(key);
-                        acc_id += key;
-                    }
-                // "individual"
-                else
+                    RCLCPP_INFO(this->get_logger(), "Sent %s takeoff", acc_id.c_str());
+                }
+
+                // "goto_velocity"
+                else if(strcmp(cmd->task.c_str(), 
+                    dict.go_to_velocity.c_str()) == 0)
                 {
-                    for (auto &agent : command_sequence.front().agents)
+                    UserCommand command;
+                    command.cmd = "goto_velocity";
+                    std::string acc_id;
+
+                    // "all"
+                    if (strcmp(cmd->agents[0].c_str(), dict.all.c_str()) == 0) 
+                        for (auto &[key, state] : agents_description)
+                        {
+                            command.uav_id.push_back(key);
+                            acc_id += key;
+                        }
+                    // "individual"
+                    else
+                    {
+                        for (auto &agent : cmd->agents)
+                        {
+                            std::map<std::string, agent_state>::iterator it = 
+                                agents_description.find(agent);
+                            
+                            if (it == agents_description.end())
+                                continue;
+                            
+                            command.uav_id.push_back(it->first);
+                            acc_id += it->first;
+                        }
+                    }
+                        
+                    command.goal.x = cmd->target[0];
+                    command.goal.y = cmd->target[1];
+                    command.goal.z = cmd->target[2];
+                    command.yaw = cmd->target[3];
+                    
+                    command_publisher->publish(command);
+                    cmd->sent_mission = true;
+                    
+                    RCLCPP_INFO(this->get_logger(), "Sent %s goto_velocity", 
+                        acc_id.c_str());                    
+                }
+
+                // "goto"
+                else if(strcmp(cmd->task.c_str(), dict.go_to.c_str()) == 0)
+                {
+                    UserCommand command;
+                    command.cmd = "goto";
+                    std::string acc_id;
+
+                    // "all"
+                    if (strcmp(cmd->agents[0].c_str(), dict.all.c_str()) == 0) 
+                        for (auto &[key, state] : agents_description)
+                        {
+                            command.uav_id.push_back(key);
+                            acc_id += key;
+                        }
+                    // "individual"
+                    else
+                    {
+                        for (auto &agent : cmd->agents)
+                        {
+                            std::map<std::string, agent_state>::iterator it = 
+                                agents_description.find(agent);
+                            
+                            if (it == agents_description.end())
+                                continue;
+                            
+                            command.uav_id.push_back(it->first);
+                            acc_id += it->first;
+                        }
+                    }
+                        
+                    command.goal.x = cmd->target[0];
+                    command.goal.y = cmd->target[1];
+                    command.goal.z = cmd->target[2];
+                    command.yaw = cmd->target[3];
+                    
+                    command_publisher->publish(command);
+                    cmd->sent_mission = true;
+                    
+                    RCLCPP_INFO(this->get_logger(), "Sent %s goto", 
+                        acc_id.c_str());                    
+                }
+
+                // "land"
+                else if(strcmp(cmd->task.c_str(), dict.land.c_str()) == 0)
+                {
+                    // "all"
+                    if (strcmp(cmd->agents[0].c_str(), dict.all.c_str()) == 0)
+                    {
+                        UserCommand command;
+                        command.cmd = "land_all";
+                        command_publisher->publish(command);
+                        cmd->sent_mission = true;
+
+                        RCLCPP_INFO(this->get_logger(), "Sent %s land", 
+                            cmd->agents[0].c_str());
+                        return;
+                    }
+
+                    // individual
+                    UserCommand command;
+                    command.cmd = "land";
+                    std::string acc_id;
+                    for (auto &agent : cmd->agents)
                     {
                         std::map<std::string, agent_state>::iterator it = 
                             agents_description.find(agent);
@@ -386,57 +436,12 @@ class mission_handler : public rclcpp::Node
                         command.uav_id.push_back(it->first);
                         acc_id += it->first;
                     }
-                }
-                    
-                command.goal.x = command_sequence.front().target[0];
-                command.goal.y = command_sequence.front().target[1];
-                command.goal.z = command_sequence.front().target[2];
-                command.yaw = command_sequence.front().target[3];
-                
-                command_publisher->publish(command);
-                completed_send_mission_task = true;
-                RCLCPP_INFO(this->get_logger(), "Sent %s goto", 
-                    acc_id.c_str());
-                last_mission_time = clock.now();
-                
-            }
-            // "land"
-            else if(strcmp(command_sequence.front().task.c_str(), 
-                dict.land.c_str()) == 0)
-            {
-                // "all"
-                if (strcmp(command_sequence.front().agents[0].c_str(), dict.all.c_str()) == 0)
-                {
-                    UserCommand command;
-                    command.cmd = "land_all";
+
                     command_publisher->publish(command);
-                    completed_send_mission_task = true;
-                    RCLCPP_INFO(this->get_logger(), "Sent %s land", 
-                        command_sequence.front().agents[0].c_str());
-                    last_mission_time = clock.now();
-                    return;
-                }
+                    cmd->sent_mission = true;
 
-                // individual
-                UserCommand command;
-                command.cmd = "land";
-                std::string acc_id;
-                for (auto &agent : command_sequence.front().agents)
-                {
-                    std::map<std::string, agent_state>::iterator it = 
-                        agents_description.find(agent);
-                    
-                    if (it == agents_description.end())
-                        continue;
-                    
-                    command.uav_id.push_back(it->first);
-                    acc_id += it->first;
+                    RCLCPP_INFO(this->get_logger(), "Sent %s land", acc_id.c_str());
                 }
-
-                command_publisher->publish(command);
-                completed_send_mission_task = true;
-                RCLCPP_INFO(this->get_logger(), "Sent %s land", acc_id.c_str());
-                last_mission_time = clock.now();
             }
         }
 
@@ -485,34 +490,36 @@ class mission_handler : public rclcpp::Node
             return vstrings;
         }
 
-    private:
-
-        rclcpp::Clock clock;
-
-        struct commander
+        bool check_completed_agents(
+            std::vector<commander>::iterator command)
         {
-            std::string task;
-            std::string cont; // continuity
-            std::vector<std::string> agents; 
-            Eigen::Vector4d target;
-            double duration; // s
-        };
+            // all
+            if (strcmp(command->agents[0].c_str(), dict.all.c_str()) == 0)
+            {
+                // check all agents
+                for (auto &[key, state] : agents_description)
+                {
+                    if (!state.completed)
+                        return false;
+                }
+            }
+            // individual
+            else
+            {
+                for (auto &agent : command->agents)
+                {
+                    auto iterator = agents_description.find(agent);
+                    if (iterator == agents_description.end())
+                        return false;
+                    
+                    if (!(iterator->second.completed))
+                        return false;
+                }
+            }
 
-        string_dictionary dict;
-        
-        std::queue<commander> command_sequence;
+            return true;
+        }
 
-        std::queue<commander> command_buffer;
-
-        rclcpp::Time last_mission_time;
-
-        rclcpp::Publisher<UserCommand>::SharedPtr command_publisher;
-
-        rclcpp::Subscription<AgentsStateFeedback>::SharedPtr agent_state_subscription;
-
-        std::map<std::string, agent_state> agents_description;
-
-        bool completed_send_mission_task = false;
 };
 
 int main(int argc, char *argv[])

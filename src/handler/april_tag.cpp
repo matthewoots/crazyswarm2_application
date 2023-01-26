@@ -85,6 +85,10 @@ void cs2::cs2_application::tag_timer_callback()
                         it->first.c_str(), it->second.t_queue.front().id);
                     return;
                 }
+                
+                RCLCPP_INFO(this->get_logger(), 
+                    "agent %s handling tag %d", 
+                    it->first.c_str(), it->second.t_queue.front().id);
             }
             
             it->second.t_queue.pop();

@@ -18,10 +18,11 @@
 
 command_sequence: [
   "takeoff", "wait", "all", "", "",
+  # "hold", "wait", "all", "7.0", "",
+  "goto_velocity", "conc", "cf1", "", "1 1 1 0.707",
+  "goto_velocity", "conc", "cf2", "", "1 0 1 0.707",
+  "goto_velocity", "wait", "cf3", "", "1 -1 1 0.707",
   "hold", "wait", "all", "7.0", "",
-  "goto_velocity", "wait", "cf1", "", "0 0 1 0.707",
-  "goto_velocity", "wait", "cf1", "", "1 0 1 0.707",
-  "goto_velocity", "wait", "cf1", "", "0 1 1 0.707",
   # "goto_velocity", "wait", "cf1 cf2", "", "1.2 1.2 1 0.707",
   # "goto_velocity", "wait", "cf3 cf4", "", "1.2 -1.2 1 0.707",
   # "goto", "wait", "cf1 cf2", "", "-1 0 1 -0.707",
@@ -37,8 +38,44 @@ trajectory_parameters:
   reached_threshold: 0.15
   takeoff_land_velocity: 0.5
   takeoff_height: 1.0
+  planning_rate: 5.0
+  communication_radius: 5.0
+  protected_zone: 0.1
+  planning_horizon_scale: 3.0
 april_tag_parameters:
   # 45 degs pointing downwards
   camera_rotation: [-0.3826834, 0, 0, 0.9238795] # x,y,z,w
   time_threshold: 0.100
   eliminate_threshold: 2.00
+
+environment:
+  obstacles: 
+    obs0:
+      type: "wall-disjointed"
+      height: [0.0, 2.5]
+      points: [
+        8.0, 3.0, 
+        8.0, 8.5,
+        13.0, 8.5,
+        13.0, 5.5
+      ]
+    obs1:
+      type: "wall-disjointed"
+      height: [0.0, 2.5]
+      points: [
+        8.0, 17.0, 
+        8.0, 11.5,
+        13.0, 11.5,
+        13.0, 14.5
+      ]
+
+# https://github.com/rgov/apriltag-pdfs
+april_tags:
+  id000:
+    id: 0
+    location: [0.1035, -0.182]
+    purpose: relocalization
+  id001:
+    id: 1
+    location: [0.5035, -0.5825]
+    purpose: relocalization
