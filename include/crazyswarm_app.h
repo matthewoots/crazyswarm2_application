@@ -18,17 +18,30 @@
 #include "crazyswarm_application/msg/agent_state.hpp"
 
 #include "motion_capture_tracking_interfaces/msg/named_pose_array.hpp"
+#include "motion_capture_tracking_interfaces/msg/named_pose.hpp"
+
 #include "apriltag_msgs/msg/april_tag_detection_array.hpp"
 #include "apriltag_msgs/msg/april_tag_detection.hpp" 
 
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/twist.hpp"
+#include "geometry_msgs/msg/transform_stamped.hpp"
+#include "geometry_msgs/msg/point.hpp"
+
+#include "visualization_msgs/msg/marker_array.hpp"
+#include "visualization_msgs/msg/marker.hpp"
 
 #include <rclcpp/rclcpp.hpp>
+
+#include <tf2_ros/transform_broadcaster.h>
 
 #include "common.h"
 #include "agent.h"
 #include "kdtree.h"
+
+#include <gtsam/geometry/Pose3.h>
+#include <gtsam/nonlinear/NonlinearFactorGraph.h>
+#include <gtsam/inference/Symbol.h>
 
 using crazyflie_interfaces::srv::Takeoff;
 using crazyflie_interfaces::srv::Land;
@@ -44,9 +57,15 @@ using apriltag_msgs::msg::AprilTagDetection;
 using apriltag_msgs::msg::AprilTagDetectionArray;
 
 using geometry_msgs::msg::PoseStamped;
+using geometry_msgs::msg::Point;
 using geometry_msgs::msg::Twist;
+using geometry_msgs::msg::TransformStamped;
 
 using motion_capture_tracking_interfaces::msg::NamedPoseArray;
+using motion_capture_tracking_interfaces::msg::NamedPose;
+
+using visualization_msgs::msg::MarkerArray;
+using visualization_msgs::msg::Marker;
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -57,6 +76,9 @@ using namespace common;
 
 using namespace RVO;
 
+using gtsam::symbol_shorthand::X; // state estimate
+using gtsam::symbol_shorthand::Z; // measurement (marker)
+
 namespace cs2
 {
     class cs2_application : public rclcpp::Node
@@ -64,8 +86,10 @@ namespace cs2
         public:
 
             cs2_application()
-                : Node("cs2_application"), clock(RCL_ROS_TIME)
+                : Node("cs2_application"), clock(RCL_ROS_TIME), tf2_bc(this)
             {
+                start_node_time = clock.now();
+
                 // declare global commands
                 this->declare_parameter("queue_size", 1);
 
@@ -77,10 +101,12 @@ namespace cs2
                 this->declare_parameter("trajectory_parameters.communication_radius", -1.0);
                 this->declare_parameter("trajectory_parameters.protected_zone", -1.0);
                 this->declare_parameter("trajectory_parameters.planning_horizon_scale", -1.0);
+                this->declare_parameter("trajectory_parameters.height_range");
 
                 this->declare_parameter("april_tag_parameters.camera_rotation");
                 this->declare_parameter("april_tag_parameters.time_threshold", -1.0);
                 this->declare_parameter("april_tag_parameters.eliminate_threshold", -1.0);
+                this->declare_parameter("april_tag_parameters.observation_limit", 1);
 
                 max_queue_size = 
                     this->get_parameter("queue_size").get_parameter_value().get<int>();
@@ -101,6 +127,8 @@ namespace cs2
                     this->get_parameter("trajectory_parameters.protected_zone").get_parameter_value().get<double>();
                 planning_horizon_scale = 
                     this->get_parameter("trajectory_parameters.planning_horizon_scale").get_parameter_value().get<double>();
+                std::vector<double> height_range_vector = 
+                    this->get_parameter("trajectory_parameters.height_range").get_parameter_value().get<std::vector<double>>();
 
                 std::vector<double> camera_rotation = 
                     this->get_parameter("april_tag_parameters.camera_rotation").get_parameter_value().get<std::vector<double>>();
@@ -108,6 +136,8 @@ namespace cs2
                     this->get_parameter("april_tag_parameters.time_threshold").get_parameter_value().get<double>();
                 eliminate_threshold = 
                     this->get_parameter("april_tag_parameters.eliminate_threshold").get_parameter_value().get<double>();
+                observation_limit =
+                    this->get_parameter("april_tag_parameters.observation_limit").get_parameter_value().get<int>();
 
                 static_camera_transform = Eigen::Affine3d::Identity();
                 // Quaterniond is w,x,y,z
@@ -117,6 +147,9 @@ namespace cs2
                 
                 std::cout << "camera_rotation:" << std::endl;
                 std::cout << static_camera_transform.linear() << std::endl;
+
+                height_range = 
+                    std::make_pair(height_range_vector[0], height_range_vector[1]);
 
                 time_threshold = 
                     this->get_parameter("april_tag_parameters.time_threshold").get_parameter_value().get<double>();
@@ -137,6 +170,7 @@ namespace cs2
                     int id = std::stoi(str_copy);
 
                     std::vector<double> pos = parameter_overrides.at("robots." + name + ".initial_position").get<std::vector<double>>();
+                    bool mission_capable = parameter_overrides.at("robots." + name + ".mission_capable").get<bool>();
 
                     agent_state a_s;
                     Eigen::Affine3d aff = Eigen::Affine3d::Identity();
@@ -146,6 +180,7 @@ namespace cs2
                     a_s.flight_state = IDLE;
                     a_s.radio_connection = false;
                     a_s.completed = false;
+                    a_s.mission_capable = mission_capable;
 
                     // RCLCPP_INFO(this->get_logger(), "(%s) %lf %lf %lf", name.c_str(), 
                     //     pos[0], pos[1], pos[2]);
@@ -178,7 +213,6 @@ namespace cs2
                     tmp.vel_world_publisher = 
                         this->create_publisher<VelocityWorld>(name + "/cmd_velocity_world", 10);
 
-                    // RCLCPP_INFO(this->get_logger(), "%lf", (--agents_states.end())->second.transform(0,0));
                     tag_queue empty = tag_queue();
 
                     agents_tag_queue.insert({name, empty});
@@ -187,12 +221,37 @@ namespace cs2
                     Agent new_rvo2_agent = Agent(
                         id, (float)(1/planning_rate), 10, (float)max_velocity, 
                         (float)communication_radius, (float)protected_zone, 
-                        (float)(planning_horizon_scale * 1/planning_rate));
+                        (float)(planning_horizon_scale * 1/planning_rate),
+                        (float)height_range.first, (float)height_range.second);
                     rvo_agents.insert({name, new_rvo2_agent});
+
+                    agents_loop_closure.insert({name, factor_graph()});
+
+                    RCLCPP_INFO(this->get_logger(), "agent %s created", name.c_str());
+                }
+
+                auto april_names = extract_names(parameter_overrides, "april_tags");
+                for (const auto &name : april_names) 
+                {
+                    int id = parameter_overrides.at("april_tags." + name + ".id").get<int>();
+                    std::string purpose = parameter_overrides.at("april_tags." + name + ".purpose").get<std::string>();
+                    if (strcmp(purpose.c_str(), relocalize.c_str()) == 0)
+                    {
+                        std::vector<double> location = 
+                            parameter_overrides.at("april_tags." + name + ".location").get<std::vector<double>>();
+                        april_relocalize.insert({id, Eigen::Vector2d(location[0], location[1])});
+                    }
+                    else if (strcmp(purpose.c_str(), eliminate.c_str()) == 0)
+                        april_eliminate.insert({id, Eigen::Vector2d::Zero()});
+                    
+                    RCLCPP_INFO(this->get_logger(), "tag %s created (%s)", name.c_str(), purpose.c_str());
                 }
 
                 pose_publisher = 
                     this->create_publisher<NamedPoseArray>("poses", 7);
+                
+                target_publisher = 
+                    this->create_publisher<MarkerArray>("targets", 7);
                 
                 agent_state_publisher = 
                     this->create_publisher<AgentsStateFeedback>("agents", 7);
@@ -212,6 +271,13 @@ namespace cs2
 
                 RCLCPP_INFO(this->get_logger(), "end_constructor");
 
+                // rotate z -90 then x -90 for it to be FRD
+                nwu_to_rdf = enu_to_rdf = Eigen::Affine3d::Identity();
+                nwu_to_rdf.rotate(Eigen::AngleAxisd(-M_PI_2, Eigen::Vector3d(0,0,1)));
+                
+                nwu_to_enu = nwu_to_rdf;
+                enu_to_rdf.rotate(Eigen::AngleAxisd(-M_PI_2, Eigen::Vector3d(1,0,0)));
+                nwu_to_rdf.rotate(Eigen::AngleAxisd(-M_PI_2, Eigen::Vector3d(1,0,0)));
             };
 
         private:
@@ -231,6 +297,12 @@ namespace cs2
             double time_threshold;
             double eliminate_threshold;
 
+            int observation_limit;
+
+            Eigen::Affine3d nwu_to_rdf;
+            Eigen::Affine3d enu_to_rdf;
+            Eigen::Affine3d nwu_to_enu;
+
             Eigen::Affine3d static_camera_transform;
 
             rclcpp::Client<Takeoff>::SharedPtr takeoff_all_client;
@@ -245,18 +317,26 @@ namespace cs2
 
             std::map<std::string, tag_queue> agents_tag_queue;
 
-            std::map<int, std::string> april_eliminate;
+            std::map<int, Eigen::Vector2d> april_eliminate;
             std::map<int, Eigen::Vector2d> april_relocalize;
             std::map<std::string, Agent> rvo_agents;
+
+            std::map<std::string, factor_graph> agents_loop_closure;
+
+            std::pair<double, double> height_range;
 
             rclcpp::TimerBase::SharedPtr planning_timer;
             rclcpp::TimerBase::SharedPtr tag_timer;
             rclcpp::TimerBase::SharedPtr handler_timer;
+        
+            tf2_ros::TransformBroadcaster tf2_bc;
 
             std::mutex agent_update_mutex;
             std::mutex tag_queue_mutex;
 
             rclcpp::Clock clock;
+
+            rclcpp::Time start_node_time;
 
             kdtree *kd_tree;
 
@@ -264,7 +344,8 @@ namespace cs2
 
             rclcpp::Publisher<NamedPoseArray>::SharedPtr pose_publisher;
             rclcpp::Publisher<AgentsStateFeedback>::SharedPtr agent_state_publisher;
-
+            rclcpp::Publisher<MarkerArray>::SharedPtr target_publisher;
+            
             void conduct_planning(
                 Eigen::Vector3d &desired, std::string mykey, agent_state state);
 
@@ -284,10 +365,21 @@ namespace cs2
             void tag_timer_callback();
             void handler_timer_callback(); 
 
+            void send_land_and_update(
+                std::map<std::string, agent_state>::iterator s,
+                std::map<std::string, agent_struct>::iterator c);
+
             void handle_eliminate(
                 std::map<std::string, agent_state>::iterator s, tag t);
 
             bool handle_relocalize(
-                std::queue<agent_state> &q, tag t, Eigen::Affine3d fused);
+                std::queue<agent_state> &q, tag t, 
+                std::map<int, Eigen::Vector2d>::iterator tag_pose, 
+                std::string id);
+    
+            void gtsam_pose_optimization(
+                Eigen::Affine3d &pose, 
+                std::map<std::string, factor_graph>::iterator fact_it,
+                std::map<std::string, agent_state>::iterator agent_it);
     };
 }

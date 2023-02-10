@@ -8,3 +8,4 @@ uint8 LAND = 5 # Landing sequence
 uint8 flight_state
 bool connected
 bool completed
+bool mission_capable

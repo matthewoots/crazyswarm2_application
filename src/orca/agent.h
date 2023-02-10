@@ -118,10 +118,12 @@ namespace RVO
        */
       Agent(size_t id, float timeStep, 
         size_t maxNeighbors, float maxSpeed, float neighborDist,
-        float radius, float timeHorizon)
+        float radius, float timeHorizon, float minHeight, 
+        float maxHeight)
         : id_(id), timeStep_(timeStep), maxNeighbors_(maxNeighbors),
         maxSpeed_(maxSpeed), neighborDist_(neighborDist),
-        radius_(radius), timeHorizon_(timeHorizon) {};
+        radius_(radius), timeHorizon_(timeHorizon), 
+        minHeight_(minHeight), maxHeight_(maxHeight_){};
 
       /**
        * @brief Destroys this agent instance.
@@ -176,6 +178,8 @@ namespace RVO
       float radius_;
       float timeHorizon_;
       float timeStep_;
+      float minHeight_;
+      float maxHeight_;
       std::vector<std::pair<float, const Eval_agent>> agentNeighbors_;
       std::vector<Plane> orcaPlanes_;
 

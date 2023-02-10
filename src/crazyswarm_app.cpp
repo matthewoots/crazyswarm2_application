@@ -133,31 +133,8 @@ void cs2::cs2_application::user_callback(
             if (!is_go_to)
             {
                 auto start = clock.now();
-                
-                auto request_land = std::make_shared<Land::Request>();
-                request_land->group_mask = 0;
-                request_land->height = 0.0;
 
-                double sec = std::floor(iterator_states->second.transform.translation().z() / takeoff_land_velocity);
-                double nanosec = (iterator_states->second.transform.translation().z() / takeoff_land_velocity - std::floor(iterator_states->second.transform.translation().z() / takeoff_land_velocity)) * 1e9;
-
-                request_land->duration.sec = sec;
-                request_land->duration.nanosec = nanosec;
-
-                auto result_land = 
-                    iterator->second.land->async_send_request(request_land);
-                
-                auto request_group = std::make_shared<SetGroupMask::Request>();
-                request_group->group_mask = 1;
-                auto result_group = 
-                    iterator->second.set_group->async_send_request(request_group);
-                
-                Eigen::Vector3d trans = iterator_states->second.transform.translation();
-                iterator_states->second.target_queue.push(
-                    Eigen::Vector3d(trans.x(), trans.y(), 0.0)
-                );
-                iterator_states->second.flight_state = LAND;
-                iterator_states->second.completed = false;
+                send_land_and_update(iterator_states, iterator);
 
                 RCLCPP_INFO(this->get_logger(), "land sent for %s and changing group_mask (%lfms)", 
                     iterator->first.c_str(), (clock.now() - start).seconds()*1000.0);
@@ -240,6 +217,7 @@ void cs2::cs2_application::pose_callback(
         copy.pose.orientation.w, copy.pose.orientation.x,
         copy.pose.orientation.y, copy.pose.orientation.z);
     state->second.transform.linear() = q.toRotationMatrix();
+    state->second.t = copy.header.stamp;
 
     // check agents_tag_queue and update s_queue
     std::map<std::string, tag_queue>::iterator it = 
@@ -271,4 +249,40 @@ void cs2::cs2_application::twist_callback(
         Eigen::Vector3d(copy.linear.x, copy.linear.y, copy.linear.z);
     
     agent_update_mutex.unlock();
+}
+
+void cs2::cs2_application::send_land_and_update(
+    std::map<std::string, agent_state>::iterator s,
+    std::map<std::string, agent_struct>::iterator c)
+{
+    auto request_land = std::make_shared<Land::Request>();
+    request_land->group_mask = 0;
+    request_land->height = 0.0;
+
+    agent_update_mutex.lock();
+
+    double sec = std::floor(s->second.transform.translation().z() / takeoff_land_velocity);
+    double nanosec = (s->second.transform.translation().z() / takeoff_land_velocity - 
+        std::floor(s->second.transform.translation().z() / takeoff_land_velocity)) * 1e9;
+
+    request_land->duration.sec = sec;
+    request_land->duration.nanosec = nanosec;
+
+    auto result_land = 
+        c->second.land->async_send_request(request_land);
+    
+    auto request_group = std::make_shared<SetGroupMask::Request>();
+    request_group->group_mask = 1;
+    auto result_group = 
+        c->second.set_group->async_send_request(request_group);
+    
+    Eigen::Vector3d trans = s->second.transform.translation();
+    s->second.target_queue.push(
+        Eigen::Vector3d(trans.x(), trans.y(), 0.0)
+    );
+
+    agent_update_mutex.unlock();
+
+    s->second.flight_state = LAND;
+    s->second.completed = false;
 }

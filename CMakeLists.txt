@@ -16,9 +16,13 @@ find_package(std_srvs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(rosgraph_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(rviz_2d_overlay_msgs REQUIRED)
+
+find_package(GTSAM REQUIRED)
 
 find_package(crazyflie_interfaces REQUIRED)
 find_package(motion_capture_tracking_interfaces REQUIRED)
@@ -45,6 +49,7 @@ include_directories(
   include
   src/orca
   external/kdtree
+  ${GTSAM_INCLUDE_DIR}
 )
 
 set(APPLICATION_SRC
@@ -65,12 +70,15 @@ add_executable(${PROJECT_NAME}_node
 add_dependencies(${PROJECT_NAME}_node ${PROJECT_NAME})
 rosidl_target_interfaces(${PROJECT_NAME}_node
   ${PROJECT_NAME} "rosidl_typesupport_cpp")
+target_link_libraries(${PROJECT_NAME}_node gtsam)
 ament_target_dependencies(${PROJECT_NAME}_node
   rclcpp
   sensor_msgs
   std_srvs
   crazyflie_interfaces
   motion_capture_tracking_interfaces
+  visualization_msgs
+  tf2_ros
   apriltag_msgs
 )
 
@@ -99,6 +107,23 @@ ament_target_dependencies(visualization_node
   visualization_msgs
   crazyflie_interfaces
   tf2_ros
+  rviz_2d_overlay_msgs
+)
+
+# add april_detection_proxy node
+add_executable(april_detection_proxy_node 
+  src/april_detection_proxy.cpp src/common.cpp)
+add_dependencies(april_detection_proxy_node ${PROJECT_NAME})
+rosidl_target_interfaces(april_detection_proxy_node
+  ${PROJECT_NAME} "rosidl_typesupport_cpp")
+ament_target_dependencies(april_detection_proxy_node
+  rclcpp
+  sensor_msgs
+  std_srvs
+  visualization_msgs
+  rosgraph_msgs
+  apriltag_msgs
+  crazyflie_interfaces
 )
 
 # Install C++ executables
@@ -106,6 +131,7 @@ install(TARGETS
   ${PROJECT_NAME}_node
   mission_node
   visualization_node
+  april_detection_proxy_node
   DESTINATION lib/${PROJECT_NAME}
 )
 

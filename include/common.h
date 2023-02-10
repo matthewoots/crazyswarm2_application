@@ -16,6 +16,10 @@
 #include "crazyflie_interfaces/srv/set_group_mask.hpp"
 #include "crazyflie_interfaces/msg/velocity_world.hpp"
 
+#include <gtsam/geometry/Pose3.h>
+
+#include <Eigen/SVD>
+
 using crazyflie_interfaces::srv::Land;
 using crazyflie_interfaces::srv::GoTo;
 using crazyflie_interfaces::srv::SetGroupMask;
@@ -42,6 +46,21 @@ namespace common
         size_t flight_state;
         bool radio_connection;
         bool completed;
+        bool mission_capable;
+
+        gtsam::Pose3 transformEigen2Gtsam()
+        {
+            Eigen::Matrix3d rot_eigen = transform.linear();
+            gtsam::Rot3 rot(
+                rot_eigen(0,0), rot_eigen(0,1), rot_eigen(0,2),
+                rot_eigen(1,0), rot_eigen(1,1), rot_eigen(1,2),
+                rot_eigen(2,0), rot_eigen(2,1), rot_eigen(2,2));
+        
+            return gtsam::Pose3(rot, 
+                gtsam::Point3{transform.translation().x(), 
+                transform.translation().y(), 
+                transform.translation().z()});
+        }
     };
 
     struct tag
@@ -51,12 +70,37 @@ namespace common
         Eigen::Affine3d transform;
         Eigen::Vector2i pixel_center;
         std::string type;
+
+        gtsam::Pose3 transformEigen2Gtsam()
+        {
+            Eigen::Matrix3d rot_eigen = transform.linear();
+            gtsam::Rot3 rot(
+                rot_eigen(0,0), rot_eigen(0,1), rot_eigen(0,2),
+                rot_eigen(1,0), rot_eigen(1,1), rot_eigen(1,2),
+                rot_eigen(2,0), rot_eigen(2,1), rot_eigen(2,2));
+        
+            return gtsam::Pose3(rot, 
+                gtsam::Point3{transform.translation().x(), 
+                transform.translation().y(), 
+                transform.translation().z()});
+        }
     };
 
     struct tag_queue
     {
         std::queue<tag> t_queue;
         std::queue<agent_state> s_queue;
+    };
+
+    struct observation
+    {
+        gtsam::Pose3 pose;
+        std::queue<tag> marker;
+    };
+
+    struct factor_graph
+    {
+        std::map<long, observation> observations;
     };
 
     enum fsm
@@ -94,6 +138,25 @@ namespace common
     std::set<std::string> extract_names(
         const std::map<std::string, rclcpp::ParameterValue> &parameter_overrides,
         const std::string &pattern);
+
+    /** 
+     * @brief similar to the ROS euler rpy which does not require the tf library, 
+     * hence independent of ROS but yield the same rotation 
+    **/
+    Eigen::Vector3d euler_rpy(Eigen::Matrix3d R);
+
+    Eigen::Vector4f quat_to_vec4(Eigen::Quaterniond q);
+    
+    Eigen::Quaterniond vec4_to_quat(Eigen::Vector4f v);
+
+    // Method to find the average of a set of rotation quaternions using Singular Value Decomposition
+    /*
+    * The algorithm used is described here:
+    * https://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/20070017872.pdf
+    */
+    // Taken from https://gist.github.com/PeteBlackerThe3rd/f73e9d569e29f23e8bd828d7886636a0 
+    Eigen::Vector4f quaternion_average(
+        std::vector<Eigen::Vector4f> quaternions);
 }
 
 #endif

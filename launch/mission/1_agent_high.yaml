@@ -1,0 +1,6 @@
+command_sequence: [
+  "takeoff", "wait", "all", "", "",
+  "hold", "wait", "all", "2.0", "",
+  "goto", "wait", "cf1", "", "2 0 1 -0.707",
+  "land", "wait", "all", "", ""
+]

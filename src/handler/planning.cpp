@@ -32,6 +32,7 @@ void cs2::cs2_application::conduct_planning(
 
     float communication_radius_float = (float)communication_radius;
 
+    // clear agent neighbour before adding in new neighbours and obstacles
     it->second.clearAgentNeighbor();
 
     while (!kd_res_end(neighbours))
@@ -64,6 +65,7 @@ void cs2::cs2_application::conduct_planning(
 void cs2::cs2_application::handler_timer_callback() 
 {
     AgentsStateFeedback agents_feedback;
+    MarkerArray target_array;
 
     // Iterate through the agents
     for (auto &[key, agent] : agents_states)
@@ -84,7 +86,7 @@ void cs2::cs2_application::handler_timer_callback()
                 Eigen::Vector3d vel_target;
                 if (pose_difference < max_velocity)
                     vel_target = 
-                        agent.previous_target - agent.transform.translation(); 
+                        (agent.previous_target - agent.transform.translation()); 
                 else
                     vel_target = 
                         (agent.previous_target - agent.transform.translation()).normalized() * max_velocity;
@@ -126,14 +128,29 @@ void cs2::cs2_application::handler_timer_callback()
                 }
                 break;
             }
-            case MOVE_VELOCITY:
+            case MOVE_VELOCITY: case INTERNAL_TRACKING:
             {
                 rclcpp::Time start = clock.now();
 
                 if (agent.target_queue.empty())
                 {
-                    agent.flight_state = HOVER;
-                    agent.completed = true;
+                    // move velocity
+                    if (agent.flight_state == MOVE_VELOCITY)
+                    {
+                        agent.flight_state = HOVER;
+                        agent.completed = true;
+                    }
+                    // internal tracking
+                    else
+                    {
+                        auto it = agents_comm.find(key);
+                        if (it == agents_comm.end())
+                            continue;
+
+                        send_land_and_update(agents_states.find(key), it);                        
+                        agent.completed = true;
+                    }
+                    
                     break;
                 }
                 double pose_difference = 
@@ -151,7 +168,7 @@ void cs2::cs2_application::handler_timer_callback()
                 }
                 else if (pose_difference < max_velocity)
                     vel_target = 
-                        agent.target_queue.front() - agent.transform.translation(); 
+                        (agent.target_queue.front() - agent.transform.translation()); 
                 else
                 {
                     vel_target = 
@@ -178,9 +195,52 @@ void cs2::cs2_application::handler_timer_callback()
                     it->second.vel_world_publisher->publish(vel_msg);
                 break;
             }
-            case INTERNAL_TRACKING:
-            {
+
+            default:
                 break;
+            
+        }
+
+        std::string str_copy = key;
+        // Remove cf from cfXX
+        str_copy.erase(0,2);
+        int id = std::stoi(str_copy);
+
+        Marker target;
+        target.header.frame_id = "/world";
+        target.header.stamp = clock.now();
+        target.type = visualization_msgs::msg::Marker::LINE_LIST;
+        target.id = id;
+        target.action = visualization_msgs::msg::Marker::ADD;
+        target.pose.orientation.x = 0.0;
+        target.pose.orientation.y = 0.0;
+        target.pose.orientation.z = 0.0;
+        target.pose.orientation.w = 1.0;
+        target.scale.x = 0.005;
+        target.color.r = 0.5;
+        target.color.g = 0.5;
+        target.color.b = 1.0;
+        target.color.a = 1.0;
+
+        if(!agent.target_queue.empty())
+        {
+            std::queue<Eigen::Vector3d> target_copy = agent.target_queue;
+
+            Point p;
+            p.x = agent.transform.translation().x();
+            p.y = agent.transform.translation().y();
+            p.z = agent.transform.translation().z();
+            target.points.push_back(p);
+
+            while (!target_copy.empty())
+            {
+                Point p;
+                p.x = target_copy.front().x();
+                p.y = target_copy.front().y();
+                p.z = target_copy.front().z();
+                target.points.push_back(p);
+
+                target_copy.pop();
             }
         }
 
@@ -189,11 +249,16 @@ void cs2::cs2_application::handler_timer_callback()
         agentstate.flight_state = agent.flight_state;
         agentstate.connected = agent.radio_connection;
         agentstate.completed = agent.completed;
+        agentstate.mission_capable = agent.mission_capable;
 
         agents_feedback.agents.push_back(agentstate);
+        target_array.markers.push_back(target);
     }
 
     // publish the flight state message
     agents_feedback.header.stamp = clock.now();
     agent_state_publisher->publish(agents_feedback);
+
+    // publish the target data
+    target_publisher->publish(target_array);
 }

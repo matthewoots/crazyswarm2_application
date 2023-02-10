@@ -24,12 +24,34 @@ def generate_launch_description():
     with open(config_yaml, 'r') as ymlfile:
         config = yaml.safe_load(ymlfile)
 
+    dictionary = dict()
+    files = os.listdir(
+        os.path.join(get_package_share_directory('crazyswarm_application'),
+        'launch', 'mission'))
+    for i in range(len(files)):
+        dictionary.update({i: files[i]})
+        print(str(i), '. ', files[i])
+
+    inp = input('What is your mission file?\n')
+    try:
+        print('Mission chosen is', dictionary[int(inp)])
+    except KeyError:
+        print('Wrong input range!')
+        exit()
+    
+    mission_yaml = os.path.join(
+        get_package_share_directory('crazyswarm_application'),
+        'launch', 'mission', dictionary[int(inp)])
+    
+    with open(mission_yaml, 'r') as ymlfile:
+        mission = yaml.safe_load(ymlfile)
+
     return LaunchDescription([
         Node(
             package='crazyswarm_application',
             executable='mission_node',
             name='mission_node',
             output='screen',
-            parameters=[crazyflies, config]
+            parameters=[crazyflies, config, mission]
         ),
     ])

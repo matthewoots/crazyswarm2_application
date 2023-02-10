@@ -17,6 +17,9 @@
   <build_depend>visualization_msgs</build_depend>
   <build_depend>tf2_ros</build_depend>
   <build_depend>builtin_interfaces</build_depend>
+  <build_depend>rosgraph_msgs</build_depend>
+  <build_depend>rviz_2d_overlay_msgs</build_depend>
+  <build_depend>GTSAM</build_depend>
 
   <build_depend>crazyflie_interfaces</build_depend>
   <build_depend>motion_capture_tracking_interfaces</build_depend>

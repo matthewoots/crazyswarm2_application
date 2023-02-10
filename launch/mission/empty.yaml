@@ -1,0 +1,18 @@
+command_sequence: [
+  # "takeoff", "wait", "all", "", "",
+  # "hold", "wait", "all", "7.0", "",
+  # "goto_velocity", "wait", "cf1", "", "1 1 1 0.707",
+  # "goto_velocity", "conc", "cf1", "", "1 1 1 0.707",
+  # "goto_velocity", "conc", "cf2", "", "1 0 1 0.707",
+  # "goto_velocity", "wait", "cf3", "", "1 -1 1 0.707",
+  # "hold", "wait", "all", "7.0", "",
+  # "hold", "wait", "all", "30.0", "",
+  # "goto_velocity", "wait", "cf1 cf2", "", "1.2 1.2 1 0.707",
+  # "goto_velocity", "wait", "cf3 cf4", "", "1.2 -1.2 1 0.707",
+  # "goto", "wait", "cf1 cf2", "", "-1 0 1 -0.707",
+  # "goto", "wait", "cf1 cf2", "", "-1 1 1 -0.707",
+  # "goto", "wait", "cf1", "", "-1 1 1 -0.707",
+  # "goto", "wait", "cf3 cf4", "", "0 1 1 0.707",
+  # "land", "wait", "cf1 cf2", "", "",
+  # "land", "wait", "all", "", ""
+]

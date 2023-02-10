@@ -391,25 +391,9 @@ namespace RVO
 
     const float distSq = std::pow((position_ - agent.position_).norm(),2);
 
-    // if (distSq < rangeSq) 
-    // {
-    //   if (agentNeighbors_.size() < maxNeighbors_) {
-        agentNeighbors_.emplace_back(std::make_pair(distSq, agent));
-    //   }
+    // communication radius is being handled by kdtree
+    agentNeighbors_.emplace_back(std::make_pair(distSq, agent));
 
-    //   std::size_t i = agentNeighbors_.size() - 1U;
-
-    //   while (i != 0U && distSq < agentNeighbors_[i - 1U].first) {
-    //     agentNeighbors_[i] = agentNeighbors_[i - 1U];
-    //     --i;
-    //   }
-
-    //   agentNeighbors_[i] = std::make_pair(distSq, agent);
-
-    //   if (agentNeighbors_.size() == maxNeighbors_) {
-    //     rangeSq = agentNeighbors_.back().first;
-    //   }
-    // }
   }
 
   void Agent::clearAgentNeighbor() {
