@@ -105,7 +105,7 @@ namespace cs2
 
                 this->declare_parameter("april_tag_parameters.camera_rotation");
                 this->declare_parameter("april_tag_parameters.time_threshold", -1.0);
-                this->declare_parameter("april_tag_parameters.eliminate_threshold", -1.0);
+                this->declare_parameter("april_tag_parameters.observation_threshold", -1.0);
                 this->declare_parameter("april_tag_parameters.observation_limit", 1);
 
                 max_queue_size = 
@@ -134,8 +134,8 @@ namespace cs2
                     this->get_parameter("april_tag_parameters.camera_rotation").get_parameter_value().get<std::vector<double>>();
                 time_threshold = 
                     this->get_parameter("april_tag_parameters.time_threshold").get_parameter_value().get<double>();
-                eliminate_threshold = 
-                    this->get_parameter("april_tag_parameters.eliminate_threshold").get_parameter_value().get<double>();
+                observation_threshold = 
+                    this->get_parameter("april_tag_parameters.observation_threshold").get_parameter_value().get<double>();
                 observation_limit =
                     this->get_parameter("april_tag_parameters.observation_limit").get_parameter_value().get<int>();
 
@@ -295,7 +295,7 @@ namespace cs2
             double planning_horizon_scale;
             // threshold parameters
             double time_threshold;
-            double eliminate_threshold;
+            double observation_threshold;
 
             int observation_limit;
 

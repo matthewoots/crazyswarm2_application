@@ -32,8 +32,8 @@ april_tag_parameters:
   # 35 degs pointing downwards
   camera_rotation: [ 0, 0.3007058, 0, 0.953717 ] # x,y,z,w
   time_threshold: 0.100
-  eliminate_threshold: 2.00
-  observation_limit: 8
+  observation_threshold: 2.00
+  observation_limit: 2
   is_z_out: true
 rviz:
   text:

@@ -24,6 +24,10 @@ void cs2::cs2_application::tag_callback(
     // Push the detection in to the queue
     for (AprilTagDetection &d : copy.detections)
     {
+        if (Eigen::Vector3d(d.pose.pose.position.x,
+            d.pose.pose.position.y, d.pose.pose.position.z).norm() > observation_threshold)
+            continue;
+
         tag tmp;
         tmp.id = d.id;
         tmp.t = copy.header.stamp;
@@ -84,7 +88,7 @@ void cs2::cs2_application::tag_callback(
         tf2_bc.sendTransform(msg2);
 
         // Eigen::Affine3d tag_to_world = 
-        //     agent_it->second.transform * static_camera_transform * single.transform;
+        //     agent_it->second.transform * single.transform;
         // Eigen::Quaterniond q_tw(tag_to_world.linear());
 
         // msg2.header.frame_id = "/world";
@@ -208,8 +212,8 @@ void cs2::cs2_application::tag_timer_callback()
             NamedPose pose;
             pose.name = it->first;
             pose.pose.position.x = trans.x();
-            pose.pose.position.x = trans.x();
-            pose.pose.position.x = trans.x();
+            pose.pose.position.y = trans.y();
+            pose.pose.position.z = trans.z();
 
             pose.pose.orientation.x = quat.x();
             pose.pose.orientation.y = quat.y();
@@ -247,7 +251,7 @@ void cs2::cs2_application::handle_eliminate(
         return;
     
     // distance rejection
-    if (t.transform.translation().norm() > eliminate_threshold)
+    if (t.transform.translation().norm() > observation_threshold)
         return;
 
     // tag not found

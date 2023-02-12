@@ -2,7 +2,11 @@
 
 Crazyswarm application layer, which provides a **path planning layer** to reach desired setpoints, **apriltag detection** for relocalization to global map and static and reciprocal avoidance and on-user commands. Also included capability, to "allocate" themselves to targets as seen below.
 
+## Simulation Example
 ![sample](media/sample.gif)
+
+## Real Life Relocalization Example
+![sample](media/relocalization.gif)
 
 ## Important Dependencies
 1. [For relocalization] `gtsam` at https://github.com/borglab/gtsam using version 4.1.1
