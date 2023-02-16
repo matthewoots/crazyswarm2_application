@@ -21,12 +21,13 @@ Crazyswarm application layer, which provides a **path planning layer** to reach 
 mkdir -p crazyswarm2_ws/src
 cd ~/crazyswarm2_ws/src
 
-# git clone these 5 repositories
+# git clone these 6 repositories
 git clone git@github.com:matthewoots/apriltag_msgs.git --branch crazyflie
 git clone git@github.com:matthewoots/apriltag_ros.git --branch crazyflie
 git clone git@github.com:matthewoots/crazyswarm2.git --branch crazyflie --recursive
 git clone --branch ros2 --recursive https://github.com/IMRCLab/motion_capture_tracking.git
 git clone git@github.com:matthewoots/crazyswarm2_application.git --recursive
+git clone git@github.com:teamspatzenhirn/rviz_2d_overlay_plugins.git
 
 # install other dependencies
 sudo apt-get install -y \
@@ -43,9 +44,10 @@ mkdir build
 cd build
 cmake ..
 make
-make install
+sudo make install
 
 # build
+# Deactivate conda env if applicable before colcon build
 cd .. # to <workspace-directory>
 # build the crazyswarm environment
 colcon build --symlink-install
