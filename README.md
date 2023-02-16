@@ -27,7 +27,7 @@ git clone git@github.com:matthewoots/apriltag_ros.git --branch crazyflie
 git clone git@github.com:matthewoots/crazyswarm2.git --branch crazyflie --recursive
 git clone --branch ros2 --recursive https://github.com/IMRCLab/motion_capture_tracking.git
 git clone git@github.com:matthewoots/crazyswarm2_application.git --recursive
-git clone https://github.com/teamspatzenhirn/rviz_2d_overlay_plugins.git
+git clone git@github.com:teamspatzenhirn/rviz_2d_overlay_plugins.git
 
 # install other dependencies
 sudo apt-get install -y \
