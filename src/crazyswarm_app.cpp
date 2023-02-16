@@ -33,9 +33,15 @@ void cs2::cs2_application::user_callback(
             if (iterator_states == agents_states.end())
                 continue;
 
+            // check if the command is external, if so, keep changing the goal
+            if (copy.is_external)
+                 while (!iterator_states->second.target_queue.empty())
+                    iterator_states->second.target_queue.pop();
+
             iterator_states->second.target_queue.push(
                 Eigen::Vector3d(copy.goal.x, copy.goal.y, copy.goal.z)
             );
+
             iterator_states->second.flight_state = MOVE_VELOCITY;
             iterator_states->second.completed = false;
         }
@@ -72,6 +78,10 @@ void cs2::cs2_application::user_callback(
             for (auto &[key, agent] : agents_states)
             {
                 Eigen::Vector3d trans = agent.transform.translation();
+                
+                while (!agent.target_queue.empty())
+                    agent.target_queue.pop();
+
                 agent.target_queue.push(
                     Eigen::Vector3d(trans.x(), trans.y(), takeoff_height)
                 );
@@ -101,6 +111,10 @@ void cs2::cs2_application::user_callback(
             for (auto &[key, agent] : agents_states)
             {
                 Eigen::Vector3d trans = agent.transform.translation();
+                
+                while (!agent.target_queue.empty())
+                    agent.target_queue.pop();
+
                 agent.target_queue.push(
                     Eigen::Vector3d(trans.x(), trans.y(), 0.0)
                 );
@@ -164,9 +178,9 @@ void cs2::cs2_application::user_callback(
                     iterator->second.go_to->async_send_request(request);
                 check_queue.push(i);
 
-                iterator_states->second.target_queue.push(
-                    Eigen::Vector3d(copy.goal.x, copy.goal.y, copy.goal.z)
-                );
+                while (!iterator_states->second.target_queue.empty())
+                    iterator_states->second.target_queue.pop();
+
                 iterator_states->second.flight_state = MOVE;
                 iterator_states->second.completed = false;
 
@@ -277,6 +291,10 @@ void cs2::cs2_application::send_land_and_update(
         c->second.set_group->async_send_request(request_group);
     
     Eigen::Vector3d trans = s->second.transform.translation();
+
+    while (!s->second.target_queue.empty())
+        s->second.target_queue.pop();
+
     s->second.target_queue.push(
         Eigen::Vector3d(trans.x(), trans.y(), 0.0)
     );

@@ -123,13 +123,13 @@ namespace common
             const std::string land_all = "land_all";
             const std::string go_to = "goto";
             const std::string hold = "hold";
+            const std::string external = "external";
             const std::string go_to_velocity = "goto_velocity";
 
             const std::string concurrent = "conc";
             const std::string wait = "wait";
             
             const std::string all = "all";
-            const std::string external = "ext";
     };
 
     const std::string relocalize = "relocalization";

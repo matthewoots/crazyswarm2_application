@@ -42,6 +42,8 @@ class mission_handler : public rclcpp::Node
             bool sent_mission;
         };
 
+        double external_msg_threshold = 5.0;
+
         string_dictionary dict;
         
         std::queue<commander> command_sequence;
@@ -50,11 +52,17 @@ class mission_handler : public rclcpp::Node
 
         rclcpp::Time last_mission_time;
 
+        rclcpp::Time last_external_command_time;
+
         rclcpp::Publisher<UserCommand>::SharedPtr command_publisher;
 
         rclcpp::Subscription<AgentsStateFeedback>::SharedPtr agent_state_subscription;
 
+        rclcpp::Subscription<UserCommand>::SharedPtr external_command_subscription;
+
         std::map<std::string, agent_state> agents_description;
+
+        std::queue<commander> external_command_queue;
 
     public:
 
@@ -152,6 +160,10 @@ class mission_handler : public rclcpp::Node
                 node_parameters_iface->get_parameter_overrides();
             auto cf_names = extract_names(parameter_overrides, "robots");
 
+            external_command_subscription = 
+                this->create_subscription<UserCommand>("/user/external", 
+                10, std::bind(&mission_handler::external_command_callback, this, _1));
+
             for (const auto &name : cf_names) 
             {
                 agent_state state;
@@ -166,6 +178,21 @@ class mission_handler : public rclcpp::Node
             }
 
             RCLCPP_INFO(this->get_logger(), "end_constructor");
+        }
+
+        void external_command_callback(const UserCommand::SharedPtr msg)
+        {
+            commander ext;
+            ext.task = "goto_velocity";
+
+            for (std::string agent : msg->uav_id)
+                ext.agents.push_back(agent);
+            
+            ext.target = Eigen::Vector4d(
+                msg->goal.x, msg->goal.y, msg->goal.z, msg->yaw
+            );
+
+            external_command_queue.push(ext);
         }
 
         void agent_event_callback(const AgentsStateFeedback::SharedPtr msg)
@@ -229,8 +256,21 @@ class mission_handler : public rclcpp::Node
                         }
                     }
                     else
+                    {
+                        if (strcmp(cmd->task.c_str(), dict.external.c_str()) == 0)
+                        {
+                            if ((clock.now() - last_external_command_time).seconds() > 
+                                external_msg_threshold)
+                                success_count++;
+                            else
+                                RCLCPP_INFO(this->get_logger(), "external time %lf/%lf", 
+                                    (clock.now() - last_external_command_time).seconds(), 
+                                    external_msg_threshold);
+                            continue;
+                        }
                         if (check_completed_agents(cmd))
                             success_count++;
+                    }
                 }
 
                 RCLCPP_INFO(this->get_logger(), "success %ld/%ld", 
@@ -254,6 +294,8 @@ class mission_handler : public rclcpp::Node
                     else
                     {
                         command_buffer.emplace_back(command_sequence.front());
+                        if (strcmp(command_sequence.front().task.c_str(), dict.external.c_str()) == 0)
+                            last_external_command_time = clock.now();
                         command_sequence.pop();
                     }
                     if (strcmp(command_buffer.back().cont.c_str(), dict.wait.c_str()) == 0)
@@ -441,6 +483,45 @@ class mission_handler : public rclcpp::Node
                     cmd->sent_mission = true;
 
                     RCLCPP_INFO(this->get_logger(), "Sent %s land", acc_id.c_str());
+                }
+
+                // "external"
+                else if(strcmp(cmd->task.c_str(), dict.external.c_str()) == 0)
+                {
+                    while (!external_command_queue.empty())
+                    {
+                        UserCommand command;
+                        command.cmd = external_command_queue.front().task;
+                        std::string acc_id;
+                        // "individual"
+                        for (auto &agent : external_command_queue.front().agents)
+                        {
+                            std::map<std::string, agent_state>::iterator it = 
+                                agents_description.find(agent);
+                            
+                            if (it == agents_description.end())
+                                continue;
+                            
+                            command.uav_id.push_back(it->first);
+                            acc_id += it->first;
+                        }
+                            
+                        command.goal.x = external_command_queue.front().target[0];
+                        command.goal.y = external_command_queue.front().target[1];
+                        command.goal.z = external_command_queue.front().target[2];
+                        command.yaw = external_command_queue.front().target[3];
+                        command.is_external = true;
+                        
+                        command_publisher->publish(command);
+                        // cmd->sent_mission = true;
+                        
+                        RCLCPP_INFO(this->get_logger(), "Sent %s external", 
+                            acc_id.c_str());
+                        
+                        external_command_queue.pop();
+
+                        last_external_command_time = clock.now();
+                    }
                 }
             }
         }

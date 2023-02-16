@@ -209,7 +209,7 @@ void cs2::cs2_application::handler_timer_callback()
         Marker target;
         target.header.frame_id = "/world";
         target.header.stamp = clock.now();
-        target.type = visualization_msgs::msg::Marker::LINE_LIST;
+        target.type = visualization_msgs::msg::Marker::LINE_STRIP;
         target.id = id;
         target.action = visualization_msgs::msg::Marker::ADD;
         target.pose.orientation.x = 0.0;
@@ -224,6 +224,7 @@ void cs2::cs2_application::handler_timer_callback()
 
         if(!agent.target_queue.empty())
         {
+            // copy to prevent deleting the main target queue
             std::queue<Eigen::Vector3d> target_copy = agent.target_queue;
 
             Point p;

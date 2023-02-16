@@ -12,7 +12,6 @@
 # [3] drone number involved
 #   1. "all"
 #   2. "cfX" = split the cfs by underscore etc "cf1_cf2_cf3"
-#   3. "ext" = external module will give
 # [4] duration (only applicable to hold) in ms
 # [5] pose in XYZ "1 1 1"
 
