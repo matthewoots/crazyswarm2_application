@@ -47,6 +47,7 @@ make
 sudo make install
 
 # build
+# Deactivate conda env if applicable before colcon build
 cd .. # to <workspace-directory>
 # build the crazyswarm environment
 colcon build --symlink-install
