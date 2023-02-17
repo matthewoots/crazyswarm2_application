@@ -16,10 +16,60 @@ Crazyswarm application layer, which provides a **path planning layer** to reach 
 5. [Crazyflie firmware for mellinger velocity control] `crazyflie-firmware` at my fork https://github.com/matthewoots/crazyflie-firmware
 6. The rest of the additional modules below are forks since there are modifications I have done to make them work with this module
 
+## Dependencies setup
+1. `Crazyflie-firmware`
+```bash
+mkdir crazyflie && cd crazyflie
+git clone git@github.com:matthewoots/crazyflie-firmware.git
+cd crazyflie-firmware
+make cf2_defconfig
+make bindings_python
+echo "export PYTHONPATH=~/crazyflie/crazyflie-firmware:$PYTHONPATH" >> ~/.bashrc
+```
+
+2. `ROS2 Galactic`
+
+Follow installation insturctions at https://docs.ros.org/en/galactic/Installation/Ubuntu-Install-Debians.html
+```bash
+# Add this line to bashrc to always source ros2 galactic (optional)
+echo "source /opt/ros/galactic/setup.bash" >> ~/.bashrc
+```
+
+3. `GTSAM`
+```bash
+#install gtsam
+cd ~/crazyflie
+git clone https://github.com/borglab/gtsam
+cd gtsam && git checkout 4.1.1
+mkdir build
+cd build
+cmake ..
+make
+sudo make install
+```
+
+4. `Other dependcies`
+```bash
+# install other dependencies
+sudo apt-get install -y \
+ros-galactic-apriltag \
+libboost-program-options-dev \
+libusb-1.0-0-dev
+pip3 install rowan
+
+#very important for gtsam
+echo $LD_LIBRARY_PATH
+
+#gtsam library is found inside here
+export LD_LIBRARY_PATH=/usr/local/lib/:$LD_LIBRARY_PATH
+```
+
 ## Environment setup and compile
 ```bash
+cd ~/crazyflie
 mkdir -p crazyswarm2_ws/src
 cd ~/crazyswarm2_ws/src
+
 
 # git clone these 6 repositories
 git clone git@github.com:matthewoots/apriltag_msgs.git --branch crazyflie
@@ -29,35 +79,16 @@ git clone --branch ros2 --recursive https://github.com/IMRCLab/motion_capture_tr
 git clone git@github.com:matthewoots/crazyswarm2_application.git --recursive
 git clone git@github.com:teamspatzenhirn/rviz_2d_overlay_plugins.git
 
-# install other dependencies
-sudo apt-get install -y \
-ros-galactic-apriltag \
-libboost-program-options-dev \
-libusb-1.0-0-dev
-pip3 install rowan
-
-#install gtsam
-cd
-git clone https://github.com/borglab/gtsam
-cd gtsam && git checkout 4.1.1
-mkdir build
-cd build
-cmake ..
-make
-sudo make install
 
 # build
 # Deactivate conda env if applicable before colcon build
 cd .. # to <workspace-directory>
+
 # build the crazyswarm environment
 colcon build --symlink-install
-# source the bash file
-source install/setup.bash
 
-# very important for gtsam
-# echo $LD_LIBRARY_PATH
-# gtsam library is found inside here
-export LD_LIBRARY_PATH=/usr/local/lib/:$LD_LIBRARY_PATH
+# source the bash file,
+source install/setup.bash
 ```
 
 For mission files, there are various missions sample files that are in `launch/mission/*`, they are in yaml format and more information can be seen in `launch/config.yaml`
