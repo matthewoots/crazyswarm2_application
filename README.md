@@ -23,7 +23,7 @@ Crazyswarm application layer, which provides a **path planning layer** to reach 
 ```bash
 cd <to-your-preferred-directory>
 mkdir -p crazyswarm2_ws/src
-cd ~/crazyswarm2_ws/src
+cd <to-your-preferred-directory>/crazyswarm2_ws/src
 
 # git clone these 6 repositories
 git clone git@github.com:matthewoots/apriltag_msgs.git --branch crazyflie
@@ -64,9 +64,9 @@ export LD_LIBRARY_PATH=/usr/local/lib/:$LD_LIBRARY_PATH
 ```bash
 # Using your ROS2 Distribution
 echo $ROS_DISTRO 
-source ros/$ROS_DISTRO/setup.bash
+source /opt/ros/$ROS_DISTRO/setup.bash
 # build
-cd <to-workspace-directory>
+cd <location-of-crazyswarm2_ws>
 # build the crazyswarm environment
 colcon build --symlink-install
 # source the bash file
