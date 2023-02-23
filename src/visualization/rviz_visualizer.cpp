@@ -266,25 +266,74 @@ class RvizVisualizer : public rclcpp::Node
             const std::map<std::string, rclcpp::ParameterValue> &parameter_overrides =
                 node_parameters_iface->get_parameter_overrides();
         
-            auto tags = extract_names(parameter_overrides, "april_tags");
-            for (const auto &tag_name : tags) 
-            {
-                tag tmp;
-                std::string name = tag_name;
-                tmp.id = parameter_overrides.at("april_tags." + tag_name + ".id").get<int>();
-                tmp.type = parameter_overrides.at("april_tags." + tag_name + ".purpose").get<std::string>();
+            std::vector<double> _pair_location_list = 
+                parameter_overrides.at("april_tags.pair_position").get<std::vector<double>>();
+            std::vector<double> _pair_paper_list = 
+                parameter_overrides.at("april_tags.pair_paper_size").get<std::vector<double>>();
+            assert(_pair_location_list.size() == 4);
+            assert(_pair_paper_list.size() == 2);
 
-                std::vector<double> pos = parameter_overrides.at("april_tags." + tag_name + ".location").get<std::vector<double>>();
-                if (pos.empty())
-                    continue;
+            RCLCPP_INFO(this->get_logger(), "[%.3lf, %.3lf]", 
+                _pair_paper_list[0], _pair_paper_list[1]);
+
+            std::vector<Eigen::Vector3d> _pair_location;
+            _pair_location.emplace_back(
+                Eigen::Vector3d(_pair_location_list[0], _pair_location_list[1], 0.0));
+            _pair_location.emplace_back(
+                Eigen::Vector3d(_pair_location_list[2], _pair_location_list[3], 0.0));
+
+            auto april_names = extract_names(parameter_overrides, "april_tags.tags");
+            for (const auto &april : april_names) 
+            {
+                bool _is_pair = false;
+                std::vector<std::string> _april_tags;
+                // april size is more than 5 (idXXX), then it would be in format idXXX idXXX
+                if (april.size() > 5)
+                {
+                    _april_tags = split_space_delimiter(april);
+                    _is_pair = true;
+                }
+                else 
+                    _april_tags.emplace_back(april);
                 
-                tmp.transform.translation() = 
-                    Eigen::Vector3d(pos[0], pos[1], pos[2]);
-                
-                april_tags.insert({name, tmp});
-                
-                RCLCPP_INFO(this->get_logger(), "tag %s: [%.3lf, %.3lf, %.3lf]", 
-                    tag_name.c_str(), pos[0], pos[1], pos[2]);
+                for (size_t i = 0; i < _april_tags.size(); i++)
+                {
+                    std::string name = _april_tags[i];
+
+                    tag tmp;
+                    // Remove id from idXXX
+                    _april_tags[i].erase(0,2);
+                    // apparently stoi will remove leading 0s
+                    tmp.id = std::stoi(_april_tags[i]);
+                    tmp.type = parameter_overrides.at("april_tags.tags." + april + ".purpose").get<std::string>();
+
+                    std::vector<double> location = parameter_overrides.at(
+                        "april_tags.tags." + april + ".location").get<std::vector<double>>();
+                    if (location.empty())
+                        continue;
+                    
+                    Eigen::Vector3d tag_pos = Eigen::Vector3d(location[0], location[1], 0.0);
+
+                    if (_is_pair)
+                    {
+                        std::string alignment = 
+                            parameter_overrides.at("april_tags.tags." + april + ".alignment").get<std::string>();
+                        if (strcmp(alignment.c_str(), "top-left") == 0)
+                            tag_pos += _pair_location[i];
+                        else if (strcmp(alignment.c_str(), "top-right") == 0)
+                            tag_pos += _pair_location[i] + Eigen::Vector3d(0.0, _pair_paper_list[1], 0.0);
+                        else if (strcmp(alignment.c_str(), "bottom-right") == 0)
+                            tag_pos += _pair_location[i] + Eigen::Vector3d(_pair_paper_list[0], _pair_paper_list[1], 0.0);
+                        else if (strcmp(alignment.c_str(), "bottom-left") == 0)
+                            tag_pos += _pair_location[i] + Eigen::Vector3d(_pair_paper_list[0], 0.0, 0.0);
+                    }
+                    tmp.transform.translation() = tag_pos;
+                    
+                    april_tags.insert({name, tmp});
+
+                    RCLCPP_INFO(this->get_logger(), "tag %s: [%.3lf, %.3lf, %.3lf]", 
+                        _april_tags[i].c_str(), tag_pos[0], tag_pos[1], tag_pos[2]);
+                }
             }
 
             auto obstacles = extract_names(parameter_overrides, "environment.obstacles");

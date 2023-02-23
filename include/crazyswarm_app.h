@@ -147,6 +147,7 @@ namespace cs2
                     this->get_parameter("trajectory_parameters.planning_horizon_scale").get_parameter_value().get<double>();
                 std::vector<double> height_range_vector = 
                     this->get_parameter("trajectory_parameters.height_range").get_parameter_value().get<std::vector<double>>();
+                assert(height_range_vector.size() == 2);
 
                 std::vector<double> camera_rotation = 
                     this->get_parameter("april_tag_parameters.camera_rotation").get_parameter_value().get<std::vector<double>>();
@@ -248,21 +249,72 @@ namespace cs2
                     RCLCPP_INFO(this->get_logger(), "agent %s created", name.c_str());
                 }
 
-                auto april_names = extract_names(parameter_overrides, "april_tags");
+                std::vector<double> _pair_location_list = 
+                    parameter_overrides.at("april_tags.pair_position").get<std::vector<double>>();
+                std::vector<double> _pair_paper_list = 
+                    parameter_overrides.at("april_tags.pair_paper_size").get<std::vector<double>>();
+                assert(_pair_location_list.size() == 4);
+                assert(_pair_paper_list.size() == 2);
+
+                std::vector<Eigen::Vector2d> _pair_location;
+                Eigen::Vector2d _paper_size = 
+                    Eigen::Vector2d(_pair_paper_list[0], _pair_paper_list[1]);
+                _pair_location.emplace_back(
+                    Eigen::Vector2d(_pair_location_list[0], _pair_location_list[1]));
+                _pair_location.emplace_back(
+                    Eigen::Vector2d(_pair_location_list[2], _pair_location_list[3]));
+
+                auto april_names = extract_names(parameter_overrides, "april_tags.tags");
                 for (const auto &name : april_names) 
                 {
-                    int id = parameter_overrides.at("april_tags." + name + ".id").get<int>();
-                    std::string purpose = parameter_overrides.at("april_tags." + name + ".purpose").get<std::string>();
-                    if (strcmp(purpose.c_str(), relocalize.c_str()) == 0)
+                    bool _is_pair = false;
+                    std::vector<std::string> _april_tags;
+                    // name size is more than 5 (idXXX), then it would be in format idXXX idXXX
+                    if (name.size() > 5)
                     {
-                        std::vector<double> location = 
-                            parameter_overrides.at("april_tags." + name + ".location").get<std::vector<double>>();
-                        april_relocalize.insert({id, Eigen::Vector2d(location[0], location[1])});
+                        _april_tags = split_space_delimiter(name);
+                        _is_pair = true;
                     }
-                    else if (strcmp(purpose.c_str(), eliminate.c_str()) == 0)
-                        april_eliminate.insert({id, Eigen::Vector2d::Zero()});
+                    else 
+                        _april_tags.emplace_back(name);
                     
-                    RCLCPP_INFO(this->get_logger(), "tag %s created (%s)", name.c_str(), purpose.c_str());
+                    for (size_t i = 0; i < _april_tags.size(); i++)
+                    {
+                        // Remove id from idXXX
+                        _april_tags[i].erase(0,2);
+                        // apparently stoi will remove leading 0s
+                        int id = std::stoi(_april_tags[i]);
+
+                        std::string purpose = parameter_overrides.at("april_tags.tags." + name + ".purpose").get<std::string>();
+                        
+                        if (strcmp(purpose.c_str(), relocalize.c_str()) == 0)
+                        {
+                            std::vector<double> location = 
+                                parameter_overrides.at("april_tags.tags." + name + ".location").get<std::vector<double>>();
+                            Eigen::Vector2d tag_pos = Eigen::Vector2d(location[0], location[1]);
+                            
+                            if (_is_pair)
+                            {
+                                std::string alignment = 
+                                    parameter_overrides.at("april_tags.tags." + name + ".alignment").get<std::string>();
+                                if (strcmp(alignment.c_str(), "top-left") == 0)
+                                    tag_pos += _pair_location[i];
+                                else if (strcmp(alignment.c_str(), "top-right") == 0)
+                                    tag_pos += _pair_location[i] + Eigen::Vector2d(0.0, _paper_size.y());
+                                else if (strcmp(alignment.c_str(), "bottom-right") == 0)
+                                    tag_pos += _pair_location[i] + Eigen::Vector2d(_paper_size.x(), _paper_size.y());
+                                else if (strcmp(alignment.c_str(), "bottom-left") == 0)
+                                    tag_pos += _pair_location[i] + Eigen::Vector2d(_paper_size.x(), 0.0);
+                            }
+
+                            april_relocalize.insert({id, tag_pos});
+                        }
+                        else if (strcmp(purpose.c_str(), eliminate.c_str()) == 0)
+                            april_eliminate.insert({id, Eigen::Vector2d::Zero()});
+                        
+                        RCLCPP_INFO(this->get_logger(), "tag %s created (%s)", 
+                            _april_tags[i].c_str(), purpose.c_str());
+                    }
                 }
 
                 pose_publisher = 

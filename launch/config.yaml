@@ -66,49 +66,55 @@ environment:
 
 # https://github.com/rgov/apriltag-pdfs
 april_tags:
-  id000:
-    id: 0
-    location: [0.1035, -0.182]
-    purpose: relocalization
-  id001:
-    id: 1
-    location: [0.5035, -0.5825]
-    purpose: relocalization
-  id002:
-    id: 2
-    location: [-1.0, 1.0]
-    purpose: relocalization
-  id003:
-    id: 3
-    location: [1.0, -1.0]
-    purpose: relocalization
-  id004:
-    id: 4
-    location: [-1.0, 1.0]
-    purpose: relocalization
-  id005:
-    id: 5
-    location: [1.0, -1.0]
-    purpose: relocalization
+  # default is top-left
+  pair_position: [-0.122, -0.1095, -0.122, -0.3095]
+  # default is A3 paper size, A4 on each side
+  pair_paper_size: [0.297, 0.420]
+  tags:
+    id000 id001:
+      alignment: "top-left"
+      location: [0.0, 0.0]
+      purpose: relocalization
+    
+    id002 id003:
+      alignment: "top-right"
+      location: [0.0, 0.0]
+      purpose: relocalization
 
-  id012:
-    id: 12
-    location: [-0.122, -0.1095]
-    purpose: relocalization
-  id013:
-    id: 13
-    location: [-0.122, -0.3095]
-    purpose: relocalization
+    id004 id005:
+      alignment: "bottom-left"
+      location: [0.0, 0.0]
+      purpose: relocalization
+    
+    id006 id007:
+      alignment: "bottom-right"
+      location: [0.0, 0.0]
+      purpose: relocalization
 
-  id050:
-    id: 50
-    location: [3.0, 1.0]
-    purpose: eliminate
-  id051:
-    id: 51
-    location: [3.0, 0.0]
-    purpose: eliminate
-  id052:
-    id: 52
-    location: [4.0, 0.0]
-    purpose: eliminate
+    id008 id009:
+      alignment: "top-right"
+      location: [1.0, -1.0]
+      purpose: relocalization
+    
+    # id010 id011:
+    #   alignment: "top-right"
+    #   location: [-0.0, -0.0]
+    #   purpose: relocalization
+
+    # id012 id013:
+    #   alignment: "top-right"
+    #   location: [-0.0, -0.0]
+    #   purpose: relocalization
+
+    id050:
+      id: 50
+      location: [3.0, 1.0]
+      purpose: eliminate
+    id051:
+      id: 51
+      location: [3.0, 0.0]
+      purpose: eliminate
+    id052:
+      id: 52
+      location: [4.0, 0.0]
+      purpose: eliminate

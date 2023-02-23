@@ -175,6 +175,8 @@ namespace common
     // Taken from https://gist.github.com/PeteBlackerThe3rd/f73e9d569e29f23e8bd828d7886636a0 
     Eigen::Vector4f quaternion_average(
         std::vector<Eigen::Vector4f> quaternions);
+
+    std::vector<std::string> split_space_delimiter(std::string str);
 }
 
 #endif

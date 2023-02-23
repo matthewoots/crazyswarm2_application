@@ -580,15 +580,6 @@ class mission_handler : public rclcpp::Node
             std::cout << " | ";
         }
 
-        std::vector<std::string> split_space_delimiter(std::string str)
-        {
-            std::stringstream ss(str);
-            std::istream_iterator<std::string> begin(ss);
-            std::istream_iterator<std::string> end;
-            std::vector<std::string> vstrings(begin, end);
-            return vstrings;
-        }
-
         bool check_completed_agents(
             std::vector<commander>::iterator command)
         {

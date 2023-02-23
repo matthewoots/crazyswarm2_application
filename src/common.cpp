@@ -139,3 +139,13 @@ Eigen::Vector3d common::euler_rpy(Eigen::Matrix3d R)
 
     return euler_out;
 }
+
+std::vector<std::string> common::split_space_delimiter(
+        std::string str)
+{
+    std::stringstream ss(str);
+    std::istream_iterator<std::string> begin(ss);
+    std::istream_iterator<std::string> end;
+    std::vector<std::string> vstrings(begin, end);
+    return vstrings;
+}
