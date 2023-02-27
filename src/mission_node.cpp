@@ -98,7 +98,7 @@ class mission_handler : public rclcpp::Node
 
             last_mission_time = clock.now();
 
-            this->declare_parameter("command_sequence");
+            this->declare_parameter("command_sequence", std::vector<double>{});
             std::vector<std::string> command_vector = 
                 this->get_parameter("command_sequence").get_parameter_value().get<std::vector<std::string>>();
             

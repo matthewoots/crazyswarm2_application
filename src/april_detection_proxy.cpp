@@ -164,7 +164,7 @@ class AprilDectectionProxy : public rclcpp::Node
         AprilDectectionProxy()
         : Node("april_dectection_proxy"), clock(RCL_ROS_TIME)
         {
-            this->declare_parameter("april_tag_parameters.camera_rotation");
+            this->declare_parameter("april_tag_parameters.camera_rotation", std::vector<double>{});
             this->declare_parameter("sim.hfov", -1.0);
             this->declare_parameter("sim.vfov", -1.0);
             this->declare_parameter("sim.observation.clamp_distance", -1.0);
@@ -387,7 +387,7 @@ class AprilDectectionProxy : public rclcpp::Node
                     else
                         next = i+1;
 
-                    Point p;
+                    geometry_msgs::msg::Point p;
                     p.x = camera.poly[current].x();
                     p.y = camera.poly[current].y();
                     p.z = camera.poly[current].z();
@@ -400,7 +400,7 @@ class AprilDectectionProxy : public rclcpp::Node
 
                 for (int i = 0; i < (int)camera.poly.size(); i++)
                 {
-                    Point p;
+                    geometry_msgs::msg::Point p;
                     p.x = camera.poly[i].x();
                     p.y = camera.poly[i].y();
                     p.z = camera.poly[i].z();
