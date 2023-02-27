@@ -46,8 +46,8 @@ sim:
 environment:
   obstacles: 
     obs0:
-      type: "wall-disjointed"
       height: [0.0, 2.5]
+      thickness: 0.3
       points: [
         8.0, 3.0, 
         8.0, 8.5,
@@ -55,8 +55,8 @@ environment:
         13.0, 5.5
       ]
     obs1:
-      type: "wall-disjointed"
       height: [0.0, 2.5]
+      thickness: 0.3
       points: [
         8.0, 17.0, 
         8.0, 11.5,
@@ -73,28 +73,28 @@ april_tags:
   tags:
     id000 id001:
       alignment: "top-left"
-      location: [0.0, 0.0]
+      location: [1.5, 0.0]
       purpose: relocalization
     
     id002 id003:
-      alignment: "top-right"
-      location: [0.0, 0.0]
+      alignment: "top-left"
+      location: [3.0, 0.0]
       purpose: relocalization
 
     id004 id005:
-      alignment: "bottom-left"
-      location: [0.0, 0.0]
+      alignment: "top-left"
+      location: [4.5, 0.0]
       purpose: relocalization
     
-    id006 id007:
-      alignment: "bottom-right"
-      location: [0.0, 0.0]
-      purpose: relocalization
+    # id006 id007:
+    #   alignment: "bottom-right"
+    #   location: [0.0, 0.0]
+    #   purpose: relocalization
 
-    id008 id009:
-      alignment: "top-right"
-      location: [1.0, -1.0]
-      purpose: relocalization
+    # id008 id009:
+    #   alignment: "top-right"
+    #   location: [1.0, -1.0]
+    #   purpose: relocalization
     
     # id010 id011:
     #   alignment: "top-right"

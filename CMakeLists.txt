@@ -52,6 +52,8 @@ include_directories(
   ${GTSAM_INCLUDE_DIR}
 )
 
+add_subdirectory(external/3dvg visibility_graph)
+
 set(APPLICATION_SRC
   src/crazyswarm_app.cpp
   src/handler/april_tag.cpp
@@ -68,7 +70,9 @@ add_executable(${PROJECT_NAME}_node
   external/kdtree/kdtree.c
 )
 add_dependencies(${PROJECT_NAME}_node ${PROJECT_NAME})
-target_link_libraries(${PROJECT_NAME}_node gtsam "${PROJECT_NAME}__rosidl_typesupport_cpp")
+target_link_libraries(${PROJECT_NAME}_node 
+  gtsam visibility_graph
+  "${PROJECT_NAME}__rosidl_typesupport_cpp")
 ament_target_dependencies(${PROJECT_NAME}_node
   rclcpp
   sensor_msgs
@@ -83,7 +87,8 @@ ament_target_dependencies(${PROJECT_NAME}_node
 # add mission node
 add_executable(mission_node src/mission_node.cpp src/common.cpp)
 add_dependencies(mission_node ${PROJECT_NAME})
-target_link_libraries(mission_node "${PROJECT_NAME}__rosidl_typesupport_cpp")
+
+target_link_libraries(mission_node visibility_graph "${PROJECT_NAME}__rosidl_typesupport_cpp")
 ament_target_dependencies(mission_node
   rclcpp
   sensor_msgs
@@ -95,7 +100,7 @@ ament_target_dependencies(mission_node
 add_executable(visualization_node 
   src/visualization/rviz_visualizer.cpp src/common.cpp)
 add_dependencies(visualization_node ${PROJECT_NAME})
-target_link_libraries(visualization_node "${PROJECT_NAME}__rosidl_typesupport_cpp")
+target_link_libraries(visualization_node visibility_graph "${PROJECT_NAME}__rosidl_typesupport_cpp")
 ament_target_dependencies(visualization_node
   rclcpp
   sensor_msgs
@@ -110,7 +115,7 @@ ament_target_dependencies(visualization_node
 add_executable(april_detection_proxy_node 
   src/april_detection_proxy.cpp src/common.cpp)
 add_dependencies(april_detection_proxy_node ${PROJECT_NAME})
-target_link_libraries(april_detection_proxy_node "${PROJECT_NAME}__rosidl_typesupport_cpp")
+target_link_libraries(april_detection_proxy_node visibility_graph "${PROJECT_NAME}__rosidl_typesupport_cpp")
 ament_target_dependencies(april_detection_proxy_node
   rclcpp
   sensor_msgs

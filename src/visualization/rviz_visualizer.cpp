@@ -64,6 +64,7 @@ class RvizVisualizer : public rclcpp::Node
 
         rclcpp::Publisher<MarkerArray>::SharedPtr tag_publisher;
         rclcpp::Publisher<OverlayText>::SharedPtr text_publisher;
+        rclcpp::Publisher<Marker>::SharedPtr obstacle_publisher;
 
         rclcpp::Subscription<AgentsStateFeedback>::SharedPtr agent_state_subscriber;
 
@@ -80,10 +81,13 @@ class RvizVisualizer : public rclcpp::Node
         Eigen::Affine3d nwu_to_rdf;
         Eigen::Affine3d enu_to_rdf;
 
+        std::vector<visibility_graph::obstacle> global_obstacle_list;
+
         void visualizing_timer_callback()
         {
             show_global_tag();
-            show_obstacles_tag();
+            show_obstacles();
+            
         }
 
         void agents_state_callback(
@@ -233,9 +237,85 @@ class RvizVisualizer : public rclcpp::Node
             tag_publisher->publish(tag_array);
         }
 
-        void show_obstacles_tag()
+        void show_obstacles()
         {
+            visualization_msgs::msg::Marker obs_visualize;
+            std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> vect_vert;
+
+            // vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> format
+            for (visibility_graph::obstacle &obs : global_obstacle_list)
+            {
+                // Get the centroid 
+                Eigen::Vector2d centroid;
+                std::vector<Eigen::Vector2d> vert;             
+
+                int obs_vert_pair_size, obs_hori_pair_size;
+                obs_vert_pair_size = obs_hori_pair_size = obs.v.size();
+
+                // Add lines for verticals
+                for (int i = 0; i < obs_vert_pair_size; i++)
+                {
+                    std::pair<Eigen::Vector3d, Eigen::Vector3d> vert_pair;
+                    vert_pair.first = Eigen::Vector3d(obs.v[i].x(), obs.v[i].y(), obs.h.first);
+                    vert_pair.second = Eigen::Vector3d(obs.v[i].x(), obs.v[i].y(), obs.h.second);
+                    vect_vert.push_back(vert_pair);
+                }
+                // Add lines for horizontals
+                for (int i = 0; i < obs_hori_pair_size; i++)
+                {
+                    std::pair<Eigen::Vector3d, Eigen::Vector3d> vert_pair;
+                    vert_pair.first = Eigen::Vector3d(
+                        obs.v[i % obs_hori_pair_size].x(), 
+                        obs.v[i % obs_hori_pair_size].y(), obs.h.first);
+                    vert_pair.second = Eigen::Vector3d(
+                        obs.v[(i+1) % obs_hori_pair_size].x(), 
+                        obs.v[(i+1) % obs_hori_pair_size].y(), obs.h.first);
+                    vect_vert.push_back(vert_pair);
+
+                    vert_pair.first = Eigen::Vector3d(
+                        obs.v[i % obs_hori_pair_size].x(), 
+                        obs.v[i % obs_hori_pair_size].y(), obs.h.second);
+                    vert_pair.second = Eigen::Vector3d(
+                        obs.v[(i+1) % obs_hori_pair_size].x(), 
+                        obs.v[(i+1) % obs_hori_pair_size].y(), obs.h.second);
+                    vect_vert.push_back(vert_pair);
+                }
+
+            }
+
+            obs_visualize.header.frame_id = "/world";
+            obs_visualize.header.stamp = clock.now();
+            obs_visualize.type = visualization_msgs::msg::Marker::LINE_LIST;
+            obs_visualize.action = visualization_msgs::msg::Marker::ADD;
+
+            obs_visualize.id = 2;
+
+            obs_visualize.color.r = 1.0;
+            obs_visualize.color.g = 1.0;
+            obs_visualize.color.b = 1.0;
+
+            obs_visualize.color.a = 0.75;
+
+            obs_visualize.scale.x = 0.10;
             
+            // Create the vertices line list
+            for (auto &vert_pair : vect_vert)
+            {
+                geometry_msgs::msg::Point p1, p2;
+                p1.x = vert_pair.first.x();
+                p2.x = vert_pair.second.x();
+
+                p1.y = vert_pair.first.y();
+                p2.y = vert_pair.second.y();
+
+                p1.z = vert_pair.first.z();
+                p2.z = vert_pair.second.z();
+
+                obs_visualize.points.push_back(p1);
+                obs_visualize.points.push_back(p2);
+            }
+            
+            obstacle_publisher->publish(obs_visualize);
         }
 
     public:
@@ -243,11 +323,12 @@ class RvizVisualizer : public rclcpp::Node
         RvizVisualizer()
         : Node("rviz_visualizer"), clock(RCL_ROS_TIME), tf2_bc(this)
         {
-
             tag_publisher = this->create_publisher<MarkerArray>("rviz/tag", 10);
 
             text_publisher = this->create_publisher<OverlayText>("rviz/text", 10);
             
+            obstacle_publisher = this->create_publisher<Marker>("rviz/obstacles", 10);
+
             visualizing_timer = this->create_wall_timer(
                 1000ms, std::bind(&RvizVisualizer::visualizing_timer_callback, this));
         
@@ -339,7 +420,23 @@ class RvizVisualizer : public rclcpp::Node
             auto obstacles = extract_names(parameter_overrides, "environment.obstacles");
             for (const auto &obs : obstacles) 
             {
+                std::vector<double> height_list = 
+                    parameter_overrides.at("environment.obstacles." + obs + ".height").get<std::vector<double>>();
+                double thickness = 
+                    parameter_overrides.at("environment.obstacles." + obs + ".thickness").get<double>();
+                std::vector<double> vertices_list = 
+                    parameter_overrides.at("environment.obstacles." + obs + ".points").get<std::vector<double>>();
+                std::vector<Eigen::Vector2d> vertices;
+                for (size_t i = 0; i < vertices_list.size()/2; i++)
+                    vertices.emplace_back(
+                        Eigen::Vector2d(vertices_list[i*2+0], vertices_list[i*2+1]));
                 
+                std::vector<visibility_graph::obstacle> obstacle_list =
+                    generate_disjointed_wall(vertices, 
+                    std::make_pair(height_list[0], height_list[1]), thickness);
+                
+                for (auto &obs : obstacle_list)
+                    global_obstacle_list.emplace_back(obs);
             }
 
             agent_state_subscriber = 

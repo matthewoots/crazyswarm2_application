@@ -149,3 +149,89 @@ std::vector<std::string> common::split_space_delimiter(
     std::vector<std::string> vstrings(begin, end);
     return vstrings;
 }
+
+std::vector<visibility_graph::obstacle> common::generate_disjointed_wall(
+    std::vector<Eigen::Vector2d> vertices, 
+    std::pair<double, double> height_pair,
+    double thickness)
+{
+    std::vector<visibility_graph::obstacle> obs_vector;
+
+    double half_thickness = thickness / 2.0;
+
+    if (vertices.size() < 2)
+        return obs_vector;
+
+    std::vector<Eigen::Vector2d> base_vertices;
+
+    Eigen::Vector2d direction = 
+        (vertices[1] - vertices[0]).normalized();
+    Eigen::Vector2d perpendicular_direction = 
+        Eigen::Vector2d(-direction.y(), direction.x());
+    
+    base_vertices.emplace_back(
+        vertices[0] + perpendicular_direction * half_thickness);
+    base_vertices.emplace_back(
+        vertices[0] - perpendicular_direction * half_thickness);
+    
+    // condition that vertices.size() > 2
+    if (vertices.size() > 2)
+        for (size_t i = 1; i < vertices.size()-1; i++)
+        {
+            Eigen::Vector2d direction1 = 
+                (vertices[i-1] - vertices[i]).normalized();
+            Eigen::Vector2d direction2 = 
+                (vertices[i+1] - vertices[i]).normalized();
+            
+            double dot = direction1.dot(direction2);
+            double angle = std::acos(dot);
+            
+            double x2 = direction1.x() * std::cos(angle/2) - direction1.y() * std::sin(angle/2);
+            double y2 = direction1.x() * std::sin(angle/2) + direction1.y() * std::cos(angle/2);
+            
+            Eigen::Vector2d direction3 = 
+                (Eigen::Vector2d(x2, y2) - vertices[i]).normalized();
+            
+            double mag = half_thickness / std::sin(angle/2);
+
+            base_vertices.emplace_back(vertices[i] + direction3 * mag);
+            base_vertices.emplace_back(vertices[i] - direction3 * mag);
+        }
+
+    direction = 
+        (vertices[vertices.size()-1] - vertices[vertices.size()-2]).normalized();
+    perpendicular_direction = 
+        Eigen::Vector2d(-direction.y(), direction.x());
+    
+    base_vertices.emplace_back(
+        vertices[vertices.size()-1] + perpendicular_direction * half_thickness);
+    base_vertices.emplace_back(
+        vertices[vertices.size()-1] - perpendicular_direction * half_thickness);
+
+    for (size_t i = 0; i < base_vertices.size()/2 - 1; i++)
+    {
+        visibility_graph::obstacle obs;
+        std::vector<Eigen::Vector2d> unorganized_verts;
+        std::vector<Eigen::Vector2d> organized_verts;
+        Eigen::Vector2d centroid = Eigen::Vector2d::Zero();
+        unorganized_verts.emplace_back(base_vertices[i*2 + 0]);
+        centroid += base_vertices[i*2 + 0];
+        unorganized_verts.emplace_back(base_vertices[i*2 + 1]);
+        centroid += base_vertices[i*2 + 1];
+        unorganized_verts.emplace_back(base_vertices[i*2 + 2]);
+        centroid += base_vertices[i*2 + 2];
+        unorganized_verts.emplace_back(base_vertices[i*2 + 3]);
+        centroid += base_vertices[i*2 + 3];
+
+        centroid /= 4.0;
+
+        visibility_graph::graham_scan(unorganized_verts, centroid, "ccw", organized_verts);
+
+        obs.v = organized_verts;
+        obs.h = height_pair;
+        obs.c = centroid;
+        obs_vector.emplace_back(obs);
+    }
+
+    return obs_vector;
+}

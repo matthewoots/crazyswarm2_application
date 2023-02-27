@@ -245,7 +245,7 @@ void cs2::cs2_application::handler_timer_callback()
             // copy to prevent deleting the main target queue
             std::queue<Eigen::Vector3d> target_copy = agent.target_queue;
 
-            Point p;
+            geometry_msgs::msg::Point p;
             p.x = agent.transform.translation().x();
             p.y = agent.transform.translation().y();
             p.z = agent.transform.translation().z();
@@ -253,7 +253,7 @@ void cs2::cs2_application::handler_timer_callback()
 
             while (!target_copy.empty())
             {
-                Point p;
+                geometry_msgs::msg::Point p;
                 p.x = target_copy.front().x();
                 p.y = target_copy.front().y();
                 p.z = target_copy.front().z();

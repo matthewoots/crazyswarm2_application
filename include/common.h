@@ -38,6 +38,8 @@
 
 #include <Eigen/SVD>
 
+#include "visibility.h"
+
 using crazyflie_interfaces::srv::Land;
 using crazyflie_interfaces::srv::GoTo;
 using crazyflie_interfaces::srv::SetGroupMask;
@@ -177,6 +179,10 @@ namespace common
         std::vector<Eigen::Vector4f> quaternions);
 
     std::vector<std::string> split_space_delimiter(std::string str);
+
+    std::vector<visibility_graph::obstacle> generate_disjointed_wall(
+        std::vector<Eigen::Vector2d> vertices, std::pair<double, double> height_pair,
+        double thickness);
 }
 
 #endif

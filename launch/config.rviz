@@ -68,19 +68,13 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: false
-        cf1:
-          Value: true
-        world:
-          Value: true
       Marker Scale: 0.75
       Name: TF
       Show Arrows: true
       Show Axes: true
       Show Names: true
       Tree:
-        world:
-          cf1:
-            {}
+        {}
       Update Interval: 0
       Value: true
     - Class: rviz_default_plugins/MarkerArray
@@ -93,10 +87,13 @@ Visualization Manager:
         id003: true
         id004: true
         id005: true
-        id012: true
-        id013: true
+        id006: true
+        id007: true
+        id008: true
+        id009: true
         id050: true
         id051: true
+        id052: true
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -108,7 +105,7 @@ Visualization Manager:
       Enabled: true
       Name: TargetArray
       Namespaces:
-        "": true
+        {}
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -148,13 +145,26 @@ Visualization Manager:
       Enabled: true
       Name: sim/camera
       Namespaces:
-        "": true
+        {}
       Topic:
         Depth: 5
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /rviz/fov
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: obstacles
+      Namespaces:
+        "": true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /rviz/obstacles
       Value: true
   Enabled: true
   Global Options:
