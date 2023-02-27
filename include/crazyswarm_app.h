@@ -119,9 +119,9 @@ namespace cs2
                 this->declare_parameter("trajectory_parameters.communication_radius", -1.0);
                 this->declare_parameter("trajectory_parameters.protected_zone", -1.0);
                 this->declare_parameter("trajectory_parameters.planning_horizon_scale", -1.0);
-                this->declare_parameter("trajectory_parameters.height_range");
+                this->declare_parameter("trajectory_parameters.height_range", std::vector<double>{});
 
-                this->declare_parameter("april_tag_parameters.camera_rotation");
+                this->declare_parameter("april_tag_parameters.camera_rotation", std::vector<double>{});
                 this->declare_parameter("april_tag_parameters.time_threshold", -1.0);
                 this->declare_parameter("april_tag_parameters.observation_threshold", -1.0);
                 this->declare_parameter("april_tag_parameters.observation_limit", 1);
