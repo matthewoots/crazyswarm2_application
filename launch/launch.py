@@ -22,9 +22,22 @@ def generate_launch_description():
         get_package_share_directory('crazyswarm_application'),
         'launch',
         'config.yaml')
-
+    
     with open(config_yaml, 'r') as ymlfile:
         config = yaml.safe_load(ymlfile)
+    
+    environment_name = config["environment_file"]
+
+    # load obstacles configuration
+    # load april tags configuration
+    environment_yaml = os.path.join(
+        get_package_share_directory('crazyswarm_application'),
+        'launch',
+        'environment',
+        environment_name)
+    
+    with open(environment_yaml, 'r') as ymlfile:
+        environment = yaml.safe_load(ymlfile)    
 
     return LaunchDescription([
         DeclareLaunchArgument('sim', default_value='false'),
@@ -33,7 +46,7 @@ def generate_launch_description():
             executable='crazyswarm_application_node',
             name='crazyswarm_application_node',
             output='screen',
-            parameters=[crazyflies, config]
+            parameters=[crazyflies, config, environment]
         ),
         Node(
             package='crazyswarm_application',

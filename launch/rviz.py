@@ -2,6 +2,8 @@ import os
 import yaml
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.conditions import LaunchConfigurationEquals
 from launch_ros.actions import Node
 
 
@@ -11,17 +13,30 @@ def generate_launch_description():
         get_package_share_directory('crazyswarm_application'),
         'meshes',
         'master.dae')
-    
-    # load april tags configuration
-    april_yaml = os.path.join(
+
+    # load swarm_manager parameters
+    config_yaml = os.path.join(
         get_package_share_directory('crazyswarm_application'),
         'launch',
         'config.yaml')
     
-    with open(april_yaml, 'r') as ymlfile:
-        april = yaml.safe_load(ymlfile)
+    with open(config_yaml, 'r') as ymlfile:
+        config = yaml.safe_load(ymlfile)
+    
+    environment_name = config["environment_file"]
 
-    config = [april] + [{'mesh_path': april_tag_path}]
+    # load obstacles configuration
+    # load april tags configuration
+    environment_yaml = os.path.join(
+        get_package_share_directory('crazyswarm_application'),
+        'launch',
+        'environment',
+        environment_name)
+    
+    with open(environment_yaml, 'r') as ymlfile:
+        environment = yaml.safe_load(ymlfile)
+
+    config = [environment] + [{'mesh_path': april_tag_path}] 
 
     ld = LaunchDescription()
 

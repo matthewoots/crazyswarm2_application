@@ -25,6 +25,7 @@
 #include <mutex>
 #include <queue>
 #include <string>
+#include "math.h"
 
 #include <Eigen/Dense>
 #include <rclcpp/rclcpp.hpp>

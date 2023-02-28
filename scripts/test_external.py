@@ -10,6 +10,7 @@ class ExternalPublisher(Node):
     def __init__(self):
         super().__init__('external_publisher')
         self.publisher_ = self.create_publisher(UserCommand, '/user/external', 10)
+        # self.publisher_ = self.create_publisher(UserCommand, '/user', 10)
         timer_period = 3.0  # seconds
         self.timer = self.create_timer(timer_period, self.timer_callback)
         self.i = 0
@@ -26,6 +27,7 @@ class ExternalPublisher(Node):
         # geometry_msgs/Point goal
         # float32 yaw
         msg.uav_id.append("cf1")
+        # msg.cmd = "goto_velocity"
         msg.goal = Point()
         msg.goal.x = self.random_generator()
         msg.goal.y = self.random_generator()

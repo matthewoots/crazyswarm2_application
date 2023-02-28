@@ -296,7 +296,7 @@ class RvizVisualizer : public rclcpp::Node
 
             obs_visualize.color.a = 0.75;
 
-            obs_visualize.scale.x = 0.10;
+            obs_visualize.scale.x = 0.05;
             
             // Create the vertices line list
             for (auto &vert_pair : vect_vert)

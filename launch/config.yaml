@@ -17,6 +17,9 @@
 
 # command_sequence: [""]
 queue_size: 20
+# add in the environment file name here
+# environment_file: ""
+environment_file: "maze.yaml"
 trajectory_parameters:
   max_velocity: 0.5
   reached_threshold: 0.175
@@ -42,79 +45,3 @@ sim:
   vfov: 50.0 # deg
   observation:
     clamp_distance: 1.5
-
-environment:
-  obstacles: 
-    obs0:
-      height: [0.0, 2.5]
-      thickness: 0.3
-      points: [
-        8.0, 3.0, 
-        8.0, 8.5,
-        13.0, 8.5,
-        13.0, 5.5
-      ]
-    obs1:
-      height: [0.0, 2.5]
-      thickness: 0.3
-      points: [
-        8.0, 17.0, 
-        8.0, 11.5,
-        13.0, 11.5,
-        13.0, 14.5
-      ]
-
-# https://github.com/rgov/apriltag-pdfs
-april_tags:
-  # default is top-left
-  pair_position: [-0.122, -0.1095, -0.122, -0.3095]
-  # default is A3 paper size, A4 on each side
-  pair_paper_size: [0.297, 0.420]
-  tags:
-    id000 id001:
-      alignment: "top-left"
-      location: [1.5, 0.0]
-      purpose: relocalization
-    
-    id002 id003:
-      alignment: "top-left"
-      location: [3.0, 0.0]
-      purpose: relocalization
-
-    id004 id005:
-      alignment: "top-left"
-      location: [4.5, 0.0]
-      purpose: relocalization
-    
-    # id006 id007:
-    #   alignment: "bottom-right"
-    #   location: [0.0, 0.0]
-    #   purpose: relocalization
-
-    # id008 id009:
-    #   alignment: "top-right"
-    #   location: [1.0, -1.0]
-    #   purpose: relocalization
-    
-    # id010 id011:
-    #   alignment: "top-right"
-    #   location: [-0.0, -0.0]
-    #   purpose: relocalization
-
-    # id012 id013:
-    #   alignment: "top-right"
-    #   location: [-0.0, -0.0]
-    #   purpose: relocalization
-
-    id050:
-      id: 50
-      location: [3.0, 1.0]
-      purpose: eliminate
-    id051:
-      id: 51
-      location: [3.0, 0.0]
-      purpose: eliminate
-    id052:
-      id: 52
-      location: [4.0, 0.0]
-      purpose: eliminate

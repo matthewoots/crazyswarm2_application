@@ -174,6 +174,8 @@ std::vector<visibility_graph::obstacle> common::generate_disjointed_wall(
     base_vertices.emplace_back(
         vertices[0] - perpendicular_direction * half_thickness);
     
+    Eigen::Vector3d north = Eigen::Vector3d(1.0, 0.0, 0.0);
+
     // condition that vertices.size() > 2
     if (vertices.size() > 2)
         for (size_t i = 1; i < vertices.size()-1; i++)
@@ -182,16 +184,25 @@ std::vector<visibility_graph::obstacle> common::generate_disjointed_wall(
                 (vertices[i-1] - vertices[i]).normalized();
             Eigen::Vector2d direction2 = 
                 (vertices[i+1] - vertices[i]).normalized();
+
+            Eigen::Vector3d direction1_3 = 
+                Eigen::Vector3d(direction1.x(), direction1.y(), 0.0);
+            Eigen::Vector3d direction2_3 = 
+                Eigen::Vector3d(direction2.x(), direction2.y(), 0.0);
             
-            double dot = direction1.dot(direction2);
-            double angle = std::acos(dot);
+            Eigen::Vector3d cross = direction1_3.cross(direction2_3);
+            double angle = std::asin(cross.norm());
+
+            if (cross.z() < 0)
+                angle = -(M_PI - angle);
+            else
+                angle = (M_PI - angle);
             
             double x2 = direction1.x() * std::cos(angle/2) - direction1.y() * std::sin(angle/2);
             double y2 = direction1.x() * std::sin(angle/2) + direction1.y() * std::cos(angle/2);
             
-            Eigen::Vector2d direction3 = 
-                (Eigen::Vector2d(x2, y2) - vertices[i]).normalized();
-            
+            Eigen::Vector2d direction3 = (Eigen::Vector2d(x2, y2)).normalized();
+
             double mag = half_thickness / std::sin(angle/2);
 
             base_vertices.emplace_back(vertices[i] + direction3 * mag);

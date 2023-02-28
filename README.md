@@ -10,6 +10,11 @@ Crazyswarm application layer, which provides a **path planning layer** to reach 
 ## Real Life Relocalization Example
 ![sample](media/relocalization.gif)
 
+## Obstacles simple polygon generation
+| Perspective1 | Perspective2 |
+| :---: | :-----------: |
+| ![sample](media/obstacles1.png) | ![sample](media/obstacles2.png) |
+
 ## Important Dependencies
 1. [For relocalization] `gtsam` at https://github.com/borglab/gtsam using version 4.1.1
 2. [For reciprocal avoidance] `kdtree` to organize agents into a kdtree
@@ -94,6 +99,11 @@ What is your mission file?
 1
 Mission chosen is takeoff_land.yaml
 ```
+
+### Environment
+An environment consists of 2 things, obstacles and april tags, which can be used for relocalization and other task depending on usage. To create an environment: 
+1. Add in a custom environment file in `launch/environment` (you can take reference to the samples
+2. In `config.yaml` add in the yaml name in `environment_file` parameter
 
 ### Launch
 There will need to be 4 terminals at least, to launch all the relevant packages
