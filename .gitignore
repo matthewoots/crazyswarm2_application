@@ -36,3 +36,18 @@
 
 # vscode
 *.vscode
+
+launch/mission/*
+
+!launch/mission/1_agent_high.yaml
+!launch/mission/1_agent_move.yaml
+!launch/mission/3_agent_orca.yaml
+!launch/mission/empty.yaml
+!launch/mission/takeoff_land.yaml
+!launch/mission/external.yaml
+
+launch/environment/*
+
+!launch/environment/lab.yaml
+!launch/environment/arena.yaml
+!launch/environment/maze.yaml

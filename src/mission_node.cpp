@@ -98,7 +98,7 @@ class mission_handler : public rclcpp::Node
 
             last_mission_time = clock.now();
 
-            this->declare_parameter("command_sequence", std::vector<double>{});
+            this->declare_parameter("command_sequence", std::vector<std::string>{});
             std::vector<std::string> command_vector = 
                 this->get_parameter("command_sequence").get_parameter_value().get<std::vector<std::string>>();
             
@@ -228,9 +228,15 @@ class mission_handler : public rclcpp::Node
                 if (it == agents_description.end())
                     continue;
                 
-                it->second.flight_state = agent.flight_state;
-                it->second.radio_connection = agent.connected;
-                it->second.completed = agent.completed;
+                // remove if flight state is internal tracking
+                if (agent.flight_state == INTERNAL_TRACKING)
+                    agents_description.erase(it);
+                else
+                {
+                    it->second.flight_state = agent.flight_state;
+                    it->second.radio_connection = agent.connected;
+                    it->second.completed = agent.completed;
+                }
             }
 
             // check through the agent's states
@@ -472,12 +478,22 @@ class mission_handler : public rclcpp::Node
                     if (strcmp(cmd->agents[0].c_str(), dict.all.c_str()) == 0)
                     {
                         UserCommand command;
-                        command.cmd = "land_all";
+                        // command.cmd = "land_all";
+                        // command_publisher->publish(command);
+                        // cmd->sent_mission = true;
+
+                        // RCLCPP_INFO(this->get_logger(), "Sent %s land", 
+                        //     cmd->agents[0].c_str());
+
+                        command.cmd = "land";
+                        for (auto &agent : agents_description)
+                        {
+                            command.uav_id.push_back(agent.first);
+                        }
                         command_publisher->publish(command);
                         cmd->sent_mission = true;
 
-                        RCLCPP_INFO(this->get_logger(), "Sent %s land", 
-                            cmd->agents[0].c_str());
+                        RCLCPP_INFO(this->get_logger(), "Sent all land");
                         return;
                     }
 
@@ -599,9 +615,10 @@ class mission_handler : public rclcpp::Node
                 for (auto &agent : command->agents)
                 {
                     auto iterator = agents_description.find(agent);
+                    // if not found we can say it is completed
                     if (iterator == agents_description.end())
-                        return false;
-                    
+                        continue;
+                                        
                     if (!(iterator->second.completed))
                         return false;
                 }

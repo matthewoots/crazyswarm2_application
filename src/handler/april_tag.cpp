@@ -294,6 +294,26 @@ void cs2::cs2_application::handle_eliminate(
         tag_to_world.translation().y(),
         s->second.transform.translation().z()));
 
+    april_found.insert({t.id, 
+        Eigen::Vector2d(tag_to_world.translation().x(),
+        tag_to_world.translation().y())});
+
+    std::time_t ttime = time(0);
+    tm *local_time = localtime(&ttime);
+
+    CSVWriter csv;
+    csv.newRow() << 
+        1900 + local_time->tm_year <<
+        1 + local_time->tm_mon <<
+        local_time->tm_mday <<
+        1 + local_time->tm_hour <<
+        1 + local_time->tm_min <<
+        1 + local_time->tm_sec <<
+        (int)(t.id) << 
+        tag_to_world.translation().x() << 
+        tag_to_world.translation().y();
+    csv.writeToFile(log_path, true);
+
     // erase the tag since we handled it
     april_eliminate.erase(tag_it);
 }

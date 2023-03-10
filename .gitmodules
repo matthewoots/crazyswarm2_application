@@ -4,3 +4,6 @@
 [submodule "external/3dvg"]
 	path = external/3dvg
 	url = git@github.com:matthewoots/3dvg.git
+[submodule "external/CSVWriter"]
+	path = external/CSVWriter
+	url = git@github.com:al-eax/CSVWriter.git

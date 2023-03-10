@@ -246,3 +246,82 @@ std::vector<visibility_graph::obstacle> common::generate_disjointed_wall(
 
     return obs_vector;
 }
+
+ void common::load_april_tags(
+    std::map<std::string, rclcpp::ParameterValue> parameter_overrides,
+    std::map<std::string, tag> &april_tag_map, double tag_edge_size, bool is_center_origin)
+{
+    std::vector<double> _pair_location_list = 
+        parameter_overrides.at("april_tags.pair_position").get<std::vector<double>>();
+    std::vector<double> _pair_paper_list = 
+        parameter_overrides.at("april_tags.pair_paper_size").get<std::vector<double>>();
+    assert(_pair_location_list.size() == 4);
+    assert(_pair_paper_list.size() == 2);
+
+    // RCLCPP_INFO(this->get_logger(), "[%.3lf, %.3lf]", 
+    //     _pair_paper_list[0], _pair_paper_list[1]);
+
+    std::vector<Eigen::Vector3d> _pair_location;
+    _pair_location.emplace_back(
+        Eigen::Vector3d(_pair_location_list[0], _pair_location_list[1], 0.0));
+    _pair_location.emplace_back(
+        Eigen::Vector3d(_pair_location_list[2], _pair_location_list[3], 0.0));
+
+    auto april_names = extract_names(parameter_overrides, "april_tags.tags");
+    for (const auto &april : april_names) 
+    {
+        bool _is_pair = false;
+        std::vector<std::string> _april_tags;
+        // april size is more than 5 (idXXX), then it would be in format idXXX idXXX
+        if (april.size() > 5)
+        {
+            _april_tags = split_space_delimiter(april);
+            _is_pair = true;
+        }
+        else 
+            _april_tags.emplace_back(april);
+        
+        for (size_t i = 0; i < _april_tags.size(); i++)
+        {
+            std::string name = _april_tags[i];
+
+            tag tmp;
+            // Remove id from idXXX
+            _april_tags[i].erase(0,2);
+            // apparently stoi will remove leading 0s
+            tmp.id = std::stoi(_april_tags[i]);
+            tmp.type = parameter_overrides.at("april_tags.tags." + april + ".purpose").get<std::string>();
+
+            std::vector<double> location = parameter_overrides.at(
+                "april_tags.tags." + april + ".location").get<std::vector<double>>();
+            if (location.size() < 2)
+                continue;
+            
+            Eigen::Vector3d tag_pos = Eigen::Vector3d(location[0], location[1], 0.0);
+
+            if (_is_pair)
+            {
+                std::string alignment = 
+                    parameter_overrides.at("april_tags.tags." + april + ".alignment").get<std::string>();
+                if (strcmp(alignment.c_str(), "top-left") == 0)
+                    tag_pos += _pair_location[i];
+                else if (strcmp(alignment.c_str(), "top-right") == 0)
+                    tag_pos += _pair_location[i] + Eigen::Vector3d(0.0, _pair_paper_list[1], 0.0);
+                else if (strcmp(alignment.c_str(), "bottom-right") == 0)
+                    tag_pos += _pair_location[i] + Eigen::Vector3d(_pair_paper_list[0], _pair_paper_list[1], 0.0);
+                else if (strcmp(alignment.c_str(), "bottom-left") == 0)
+                    tag_pos += _pair_location[i] + Eigen::Vector3d(_pair_paper_list[0], 0.0, 0.0);
+            }
+
+            if (!is_center_origin)
+                tag_pos += Eigen::Vector3d(tag_edge_size/2.0, tag_edge_size/2.0, 0.0);
+
+            tmp.transform.translation() = tag_pos;
+            
+            april_tag_map.insert({name, tmp});
+
+            // RCLCPP_INFO(this->get_logger(), "tag %s: [%.3lf, %.3lf, %.3lf]", 
+            //     _april_tags[i].c_str(), tag_pos[0], tag_pos[1], tag_pos[2]);
+        }
+    }
+}

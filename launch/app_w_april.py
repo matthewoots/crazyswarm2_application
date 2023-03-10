@@ -36,6 +36,19 @@ def generate_launch_description():
 
     ld = LaunchDescription()
 
+    environment_name = config["environment_file"]
+
+    # load obstacles configuration
+    # load april tags configuration
+    environment_yaml = os.path.join(
+        get_package_share_directory('crazyswarm_application'),
+        'launch',
+        'environment',
+        environment_name)
+    
+    with open(environment_yaml, 'r') as ymlfile:
+        environment = yaml.safe_load(ymlfile) 
+
     for x in robots_list.keys():
         # load calibration
         calibration_yaml = os.path.join(
@@ -48,7 +61,7 @@ def generate_launch_description():
         
         calib_params = [calibration] + [crazyflies]
         cfg_params = [cfg]
-        app_params = [crazyflies] + [config]
+        app_params = [crazyflies] + [config] + [environment]
 
         camera_node = Node(
                 package="apriltag_ros",

@@ -88,7 +88,7 @@ class AprilDectectionProxy : public rclcpp::Node
 
         rclcpp::Subscription<Clock>::SharedPtr clock_sub;
 
-        std::map<int, Eigen::Vector2d> april_tags;
+        std::map<std::string, tag> april_tags;
 
         rclcpp::TimerBase::SharedPtr camera_frame_timer;
 
@@ -255,18 +255,7 @@ class AprilDectectionProxy : public rclcpp::Node
             camera_fov_publisher = 
                 this->create_publisher<MarkerArray>("rviz/fov", 10);
 
-            auto april_names = extract_names(parameter_overrides, "april_tags");
-            for (const auto &name : april_names) 
-            {
-                int id = parameter_overrides.at("april_tags." + name + ".id").get<int>();
-                std::string purpose = parameter_overrides.at("april_tags." + name + ".purpose").get<std::string>();
-                // regardless of the tag we accept it
-                std::vector<double> location = 
-                    parameter_overrides.at("april_tags." + name + ".location").get<std::vector<double>>();
-                april_tags.insert({id, Eigen::Vector2d(location[0], location[1])});
-                
-                // RCLCPP_INFO(this->get_logger(), "tag %s created (%s)", name.c_str(), purpose.c_str());
-            }
+            load_april_tags(parameter_overrides, april_tags, 0.0, true);
 
             camera_frame_timer = this->create_wall_timer(
                 50ms, std::bind(&AprilDectectionProxy::camera_timer_callback, this));
@@ -421,15 +410,16 @@ class AprilDectectionProxy : public rclcpp::Node
                 tag_detection.header.stamp = clock.now();
 
                 // check for tags detected
-                for (auto &[id_key, pos] : april_tags)
-                    if (point_in_polygon(pos, camera.poly))
+                for (auto &[str_id, tag] : april_tags)
+                    if (point_in_polygon(Eigen::Vector2d(
+                        tag.transform.translation().x(),
+                        tag.transform.translation().y()), camera.poly))
                     {
                         AprilTagDetection detection;
 
                         // create the transformation of the april tag
                         Eigen::Affine3d tag_transform = Eigen::Affine3d::Identity();
-                        tag_transform.translation() = 
-                            Eigen::Vector3d(pos.x(), pos.y(), 0.0);
+                        tag_transform.translation() = tag.transform.translation();
 
                         // cam -> body * body -> world * world -> tag
                         Eigen::Affine3d rel_transform = 
@@ -446,7 +436,7 @@ class AprilDectectionProxy : public rclcpp::Node
                         transforms.emplace_back(rel_transform);
 
                         detection.family = "36h11";
-                        detection.id = id_key;
+                        detection.id = tag.id;
 
                         Eigen::Quaterniond q(rel_transform.linear());
                         detection.pose.pose.orientation.x = q.x();

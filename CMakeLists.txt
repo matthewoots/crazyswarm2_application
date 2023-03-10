@@ -49,6 +49,7 @@ include_directories(
   include
   src/orca
   external/kdtree
+  external/CSVWriter/include
   ${GTSAM_INCLUDE_DIR}
 )
 

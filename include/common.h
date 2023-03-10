@@ -91,6 +91,7 @@ namespace common
         Eigen::Affine3d transform;
         Eigen::Vector2i pixel_center;
         std::string type;
+        bool found = false;
 
         gtsam::Pose3 transformEigen2Gtsam()
         {
@@ -184,6 +185,10 @@ namespace common
     std::vector<visibility_graph::obstacle> generate_disjointed_wall(
         std::vector<Eigen::Vector2d> vertices, std::pair<double, double> height_pair,
         double thickness);
+    
+    void load_april_tags(
+        std::map<std::string, rclcpp::ParameterValue> parameter_overrides,
+        std::map<std::string, tag> &april_tag_map, double tag_edge_size, bool is_center_origin);
 }
 
 #endif

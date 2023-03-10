@@ -22,6 +22,7 @@
 #include <mutex>
 #include <queue>
 #include <string>
+#include <ctime>
 
 #include <Eigen/Dense>
 
@@ -60,6 +61,8 @@
 #include <gtsam/geometry/Pose3.h>
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
 #include <gtsam/inference/Symbol.h>
+
+#include <CSVWriter.h>
 
 using crazyflie_interfaces::srv::Takeoff;
 using crazyflie_interfaces::srv::Land;
@@ -125,6 +128,9 @@ namespace cs2
                 this->declare_parameter("april_tag_parameters.time_threshold", -1.0);
                 this->declare_parameter("april_tag_parameters.observation_threshold", -1.0);
                 this->declare_parameter("april_tag_parameters.observation_limit", 1);
+                this->declare_parameter("april_tag_parameters.center_origin", false);
+                this->declare_parameter("tag_edge_size", 0.162);
+                this->declare_parameter("log_path", "");
 
                 max_queue_size = 
                     this->get_parameter("queue_size").get_parameter_value().get<int>();
@@ -157,6 +163,12 @@ namespace cs2
                     this->get_parameter("april_tag_parameters.observation_threshold").get_parameter_value().get<double>();
                 observation_limit =
                     this->get_parameter("april_tag_parameters.observation_limit").get_parameter_value().get<int>();
+                center_origin = 
+                    this->get_parameter("april_tag_parameters.center_origin").get_parameter_value().get<bool>();
+                tag_edge_size = 
+                    this->get_parameter("tag_edge_size").get_parameter_value().get<double>();
+                log_path = 
+                    this->get_parameter("log_path").get_parameter_value().get<std::string>();
 
                 static_camera_transform = Eigen::Affine3d::Identity();
                 // Quaterniond is w,x,y,z
@@ -307,6 +319,9 @@ namespace cs2
                                     tag_pos += _pair_location[i] + Eigen::Vector2d(_paper_size.x(), 0.0);
                             }
 
+                            if (!center_origin)
+                                tag_pos += Eigen::Vector2d(tag_edge_size/2.0, tag_edge_size/2.0);
+
                             april_relocalize.insert({id, tag_pos});
                         }
                         else if (strcmp(purpose.c_str(), eliminate.c_str()) == 0)
@@ -355,6 +370,8 @@ namespace cs2
             // parameters
             int max_queue_size;
 
+            bool center_origin;
+
             double max_velocity;
             double takeoff_land_velocity;
             double takeoff_height;
@@ -366,8 +383,11 @@ namespace cs2
             // threshold parameters
             double time_threshold;
             double observation_threshold;
+            double tag_edge_size;
 
             int observation_limit;
+
+            std::string log_path;
 
             Eigen::Affine3d nwu_to_rdf;
             Eigen::Affine3d enu_to_rdf;
@@ -388,6 +408,7 @@ namespace cs2
             std::map<std::string, tag_queue> agents_tag_queue;
 
             std::map<int, Eigen::Vector2d> april_eliminate;
+            std::map<int, Eigen::Vector2d> april_found;
             std::map<int, Eigen::Vector2d> april_relocalize;
             std::map<std::string, Agent> rvo_agents;
 

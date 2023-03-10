@@ -1,9 +1,0 @@
-command_sequence: [
-  "takeoff", "wait", "all", "", "",
-  "hold", "wait", "all", "3.0", "",
-  "goto_velocity", "conc", "cf1", "", "4 1 1 0.707",
-  "goto_velocity", "conc", "cf2", "", "4 0 1 0.707",
-  "goto_velocity", "wait", "cf3", "", "4 -1 1 0.707",
-  "hold", "wait", "all", "3.0", "",
-  "land", "wait", "all", "", ""
-]
