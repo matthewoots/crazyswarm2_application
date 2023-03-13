@@ -26,6 +26,8 @@
 
 #include <Eigen/Dense>
 
+#include "std_srvs/srv/empty.hpp"
+
 #include "crazyflie_interfaces/srv/takeoff.hpp"
 #include "crazyflie_interfaces/srv/land.hpp"
 #include "crazyflie_interfaces/srv/go_to.hpp"
@@ -63,6 +65,8 @@
 #include <gtsam/inference/Symbol.h>
 
 #include <CSVWriter.h>
+
+using std_srvs::srv::Empty;
 
 using crazyflie_interfaces::srv::Takeoff;
 using crazyflie_interfaces::srv::Land;
@@ -233,6 +237,7 @@ namespace cs2
                     tmp.go_to = this->create_client<GoTo>(name + "/go_to");
                     tmp.land = this->create_client<Land>(name + "/land");
                     tmp.set_group = this->create_client<SetGroupMask>(name + "/set_group_mask");
+                    tmp.emergency = this->create_client<Empty>(name + "/emergency");
                     
                     pose_sub.insert({name, this->create_subscription<PoseStamped>(
                         name + "/pose", 7, pcallback)});

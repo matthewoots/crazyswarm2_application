@@ -30,6 +30,8 @@
 #include <Eigen/Dense>
 #include <rclcpp/rclcpp.hpp>
 
+#include "std_srvs/srv/empty.hpp"
+
 #include "crazyflie_interfaces/srv/land.hpp"
 #include "crazyflie_interfaces/srv/go_to.hpp"
 #include "crazyflie_interfaces/srv/set_group_mask.hpp"
@@ -41,6 +43,7 @@
 
 #include "visibility.h"
 
+using std_srvs::srv::Empty;
 using crazyflie_interfaces::srv::Land;
 using crazyflie_interfaces::srv::GoTo;
 using crazyflie_interfaces::srv::SetGroupMask;
@@ -50,6 +53,7 @@ namespace common
 {
     struct agent_struct
     {
+        rclcpp::Client<Empty>::SharedPtr emergency;
         rclcpp::Client<SetGroupMask>::SharedPtr set_group;
         rclcpp::Client<GoTo>::SharedPtr go_to;
         rclcpp::Client<Land>::SharedPtr land;

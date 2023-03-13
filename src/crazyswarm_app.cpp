@@ -240,7 +240,7 @@ void cs2::cs2_application::pose_callback(
     agent_update_mutex.lock();
 
     PoseStamped copy = *msg;
-    auto pos = state->second.transform.translation();
+    // auto pos = state->second.transform.translation();
     // RCLCPP_INFO(this->get_logger(), "(%s) %lf %lf %lf", state->first.c_str(), 
     //     pos[0], pos[1], pos[2]);
     state->second.transform.translation() = 
@@ -264,6 +264,29 @@ void cs2::cs2_application::pose_callback(
 
     state->second.radio_connection = true;
 
+    // do a flip detection
+    double flip_threshold = 1.2; // 69 degrees
+    Eigen::Vector3d rpy = euler_rpy(state->second.transform.linear());
+    // RCLCPP_INFO(this->get_logger(), "(%s) %lf %lf %lf", state->first.c_str(), 
+    //     rpy[0], rpy[1], rpy[2]);
+    for (size_t i = 0; i < 3; i++)
+        if (rpy[i] > flip_threshold)
+        {
+            std::map<std::string, agent_struct>::iterator it_comm = 
+                agents_comm.find(state->first);
+            if (it_comm != agents_comm.end())
+            {
+                auto request = std::make_shared<Empty::Request>();
+                auto result = 
+                    it_comm->second.emergency->async_send_request(request);
+
+                state->second.flight_state = IDLE;
+                state->second.radio_connection = false;
+                state->second.completed = false;
+            }
+        }
+    
+
     agent_update_mutex.unlock();
 }
 
@@ -274,9 +297,6 @@ void cs2::cs2_application::twist_callback(
     agent_update_mutex.lock();
 
     Twist copy = *msg;
-    // Eigen::Vector3d pos = pose.second.translation();
-    // RCLCPP_INFO(this->get_logger(), "(%ld) %lf %lf %lf", pose.first, 
-    //     pos[0], pos[1], pos[2]);
     state->second.velocity = 
         Eigen::Vector3d(copy.linear.x, copy.linear.y, copy.linear.z);
     
