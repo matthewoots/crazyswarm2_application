@@ -238,6 +238,17 @@ void cs2::cs2_application::tag_timer_callback()
             pose.pose.orientation.z = quat.z();
             pose.pose.orientation.w = quat.w();
 
+            double magnitude_1 = std::pow(10,-1);
+            double magnitude_2 = std::pow(10,-2);
+            double distance = trans.norm();
+            if (distance > observation_limit)
+                continue;
+            
+            pose.sd_position = 
+                1/(observation_limit - distance) * magnitude_1;
+            pose.sd_quaternion = 
+                1/(observation_limit - distance) * magnitude_2;
+
             pose_correction.poses.emplace_back(pose);
         }
 
