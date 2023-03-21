@@ -82,6 +82,7 @@ void cs2::cs2_application::conduct_planning(
     // threshold is communication_radius
     for (auto &poly : rot_polygons)
     {
+        size_t count = 0;
         for (size_t i = 0; i < poly.v.size(); i++)
         {
             size_t j = (i + 1) % (poly.v.size());
@@ -95,9 +96,9 @@ void cs2::cs2_application::conduct_planning(
             {
                 // distribute from poly.v[i] poly.v[j]
                 Eigen::Vector3d vi = 
-                    copy.t * Eigen::Vector3d(poly.v[i].x(), poly.v[i].y(), 0.0);
+                    copy.t.inverse() * Eigen::Vector3d(poly.v[i].x(), poly.v[i].y(), 0.0);
                 Eigen::Vector3d vj = 
-                    copy.t * Eigen::Vector3d(poly.v[j].x(), poly.v[j].y(), 0.0);
+                    copy.t.inverse() * Eigen::Vector3d(poly.v[j].x(), poly.v[j].y(), 0.0);
                 size_t div = (size_t)std::ceil((vj - vi).norm() / (protected_zone * 2.0));
                 double separation = (vj - vi).norm() / div;
                 Eigen::Vector3d dir = (vj - vi).normalized();
@@ -107,9 +108,11 @@ void cs2::cs2_application::conduct_planning(
                     Eval_agent static_point;
                     static_point.position_ = (vi + dir * j * separation).cast<float>();
                     static_point.velocity_ = Eigen::Vector3f::Zero();
-                    static_point.radius_ = (float)protected_zone * 2.0f;
+                    static_point.radius_ = (float)protected_zone/2;
                     it->second.insertAgentNeighbor(static_point, communication_radius_float);
+                    // std::cout << mykey << " obstacle_static " << static_point.position_.transpose() << std::endl;
                 }
+                count++;
             }
         }
     }

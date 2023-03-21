@@ -1,46 +1,60 @@
 import rclpy
 from rclpy.node import Node
+import sys
 import random
 
 from crazyswarm_application.msg import UserCommand
 from geometry_msgs.msg import Point
+from std_srvs.srv import Empty
 
 class ExternalPublisher(Node):
 
-    def __init__(self):
+    def __init__(self, agent_list):
         super().__init__('external_publisher')
         self.publisher_ = self.create_publisher(UserCommand, '/user/external', 10)
-        # self.publisher_ = self.create_publisher(UserCommand, '/user', 10)
-        timer_period = 3.0  # seconds
-        self.timer = self.create_timer(timer_period, self.timer_callback)
+        self.timer_period = 3.0  # seconds
+        self.create_service(Empty, "/external/receive", self.external_callback)
         self.i = 0
         self.max = 5.0
         self.height = 1.0
+        self.agents = agent_list
+    
+    def external_callback(self, request, response):
+        self.get_logger().info("start timer")
+        self.timer = self.create_timer(self.timer_period, self.timer_callback)
+        return response
     
     def random_generator(self):
         return ((random.random()*2) - 1) * self.max
 
     def timer_callback(self):
-        msg = UserCommand()
+        idx = random.randint(0, len(self.agents)-1)
         # string cmd
         # string[] uav_id
         # geometry_msgs/Point goal
         # float32 yaw
-        msg.uav_id.append("cf1")
-        # msg.cmd = "goto_velocity"
-        msg.goal = Point()
+        msg = self.agents.get(idx)
         msg.goal.x = self.random_generator()
         msg.goal.y = self.random_generator()
         msg.goal.z = self.height
 
-        print(msg.goal.x, msg.goal.y, msg.goal.z)
+        print(msg.uav_id, msg.goal.x, msg.goal.y, msg.goal.z)
         self.publisher_.publish(msg)
 
 
-def main(args=None):
-    rclpy.init(args=args)
+def main():
+    print('Number of arguments:', len(sys.argv), 'arguments.')
+    agent_list = {}
+    count = 0
+    for arg in sys.argv[1:]:
+        cmd = UserCommand()
+        cmd.uav_id.append("cf" + str(arg))
+        agent_list[count] = cmd
+        print('... append: ', "cf" + str(arg))
+        count += 1
+    rclpy.init(args=None)
 
-    external_publisher = ExternalPublisher()
+    external_publisher = ExternalPublisher(agent_list)
 
     rclpy.spin(external_publisher)
 

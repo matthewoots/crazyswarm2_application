@@ -30,12 +30,15 @@
 #include "crazyswarm_application/msg/agents_state_feedback.hpp"
 #include "crazyswarm_application/msg/agent_state.hpp"
 
+#include "std_srvs/srv/empty.hpp"
+
 #include <rclcpp/rclcpp.hpp>
 #include "common.h"
 
 using crazyswarm_application::msg::UserCommand;
 using crazyswarm_application::msg::AgentsStateFeedback;
 using crazyswarm_application::msg::AgentState;
+using std_srvs::srv::Empty;
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -82,6 +85,8 @@ class mission_handler : public rclcpp::Node
         std::map<std::string, agent_state> agents_description;
 
         std::queue<commander> external_command_queue;
+
+        rclcpp::Client<Empty>::SharedPtr send_external;
 
     public:
 
@@ -179,6 +184,8 @@ class mission_handler : public rclcpp::Node
             agent_state_subscription = 
                 this->create_subscription<AgentsStateFeedback>("agents", 
                 2, std::bind(&mission_handler::agent_event_callback, this, _1));
+
+            send_external = this->create_client<Empty>("/external/receive");
 
             // load crazyflies from params
             auto node_parameters_iface = this->get_node_parameters_interface();
@@ -327,7 +334,12 @@ class mission_handler : public rclcpp::Node
                     {
                         command_buffer.emplace_back(command_sequence.front());
                         if (strcmp(command_sequence.front().task.c_str(), dict.external.c_str()) == 0)
+                        {
                             last_external_command_time = clock.now();
+                            auto request = std::make_shared<Empty::Request>();
+                            auto result = 
+                                send_external->async_send_request(request);
+                        }
                         command_sequence.pop();
                     }
                     if (strcmp(command_buffer.back().cont.c_str(), dict.wait.c_str()) == 0)
