@@ -65,6 +65,55 @@ void cs2::cs2_application::conduct_planning(
 
     kd_free(kd_tree);
 
+    // add in the static obstacles as static neighbours
+    // find the obstacles that lie on the plane first
+    visibility_graph::global_map copy = global_obstacle_map;
+    copy.start_end.first = state.transform.translation();
+    copy.t = visibility_graph::get_affine_transform(
+        copy.start_end.first, Eigen::Vector3d(0.0, 0.0, 0.0), "nwu");
+
+    // check all obstacles and add in edges that may have collision
+    std::vector<visibility_graph::obstacle> rot_polygons;
+    std::vector<Eigen::Vector3d> debug_point_vertices;
+    visibility_graph::get_polygons_on_plane(
+        copy, Eigen::Vector3d(0.0, 0.0, 1.0), 
+        rot_polygons, debug_point_vertices);
+    
+    // threshold is communication_radius
+    for (auto &poly : rot_polygons)
+    {
+        for (size_t i = 0; i < poly.v.size(); i++)
+        {
+            size_t j = (i + 1) % (poly.v.size());
+            double distance;
+            Eigen::Vector2d closest_point;
+
+            visibility_graph::get_point_to_line(
+                Eigen::Vector2d::Zero(), poly.v[i], poly.v[j],
+                distance, closest_point);
+            if (distance < communication_radius)
+            {
+                // distribute from poly.v[i] poly.v[j]
+                Eigen::Vector3d vi = 
+                    copy.t * Eigen::Vector3d(poly.v[i].x(), poly.v[i].y(), 0.0);
+                Eigen::Vector3d vj = 
+                    copy.t * Eigen::Vector3d(poly.v[j].x(), poly.v[j].y(), 0.0);
+                size_t div = (size_t)std::ceil((vj - vi).norm() / (protected_zone * 2.0));
+                double separation = (vj - vi).norm() / div;
+                Eigen::Vector3d dir = (vj - vi).normalized();
+
+                for (size_t j = 0; j < div; j++)
+                {
+                    Eval_agent static_point;
+                    static_point.position_ = (vi + dir * j * separation).cast<float>();
+                    static_point.velocity_ = Eigen::Vector3f::Zero();
+                    static_point.radius_ = (float)protected_zone * 2.0f;
+                    it->second.insertAgentNeighbor(static_point, communication_radius_float);
+                }
+            }
+        }
+    }
+
     if (!it->second.noNeighbours())
     {
         agent_update_mutex.lock();
@@ -91,7 +140,7 @@ void cs2::cs2_application::handler_timer_callback()
         rclcpp::Time now = this->get_clock()->now();
         switch (agent.flight_state)
         {
-            case IDLE:
+            case IDLE: case EMERGENCY:
             {
                 break;
             }

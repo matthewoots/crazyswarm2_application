@@ -133,11 +133,12 @@ namespace common
     {
         IDLE, // Have not taken off
         TAKEOFF, // Taking off sequence
-        MOVE, // Move according to external command (change target)
-        MOVE_VELOCITY, // Move according to external command (change target)
+        MOVE, // Move according to high level command (change target)
+        MOVE_VELOCITY, // Move according to velocity command (change target)
         INTERNAL_TRACKING, // Internal command logic takes precedence over external
         HOVER, // Stop and hover
-        LAND // Landing sequence
+        LAND, // Landing sequence
+        EMERGENCY // Emergency
     };
 
     class string_dictionary
@@ -193,6 +194,10 @@ namespace common
     void load_april_tags(
         std::map<std::string, rclcpp::ParameterValue> parameter_overrides,
         std::map<std::string, tag> &april_tag_map, double tag_edge_size, bool is_center_origin);
+    
+    void load_obstacle_map(
+        std::map<std::string, rclcpp::ParameterValue> parameter_overrides,
+        std::vector<visibility_graph::obstacle> &obstacle_map);
 }
 
 #endif

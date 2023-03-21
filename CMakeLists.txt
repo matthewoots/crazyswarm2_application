@@ -25,7 +25,6 @@ find_package(rviz_2d_overlay_msgs REQUIRED)
 find_package(GTSAM REQUIRED)
 
 find_package(crazyflie_interfaces REQUIRED)
-find_package(motion_capture_tracking_interfaces REQUIRED)
 find_package(apriltag_msgs REQUIRED)
 
 find_package(rosidl_default_generators REQUIRED)
@@ -33,6 +32,8 @@ find_package(rosidl_default_generators REQUIRED)
 set(msg_files
   "msg/UserCommand.msg"
   "msg/AgentState.msg"
+  "msg/NamedPose.msg"
+  "msg/NamedPoseArray.msg"
   "msg/AgentsStateFeedback.msg"
   )
 
@@ -53,7 +54,7 @@ include_directories(
   ${GTSAM_INCLUDE_DIR}
 )
 
-add_subdirectory(external/3dvg visibility_graph)
+add_subdirectory(external/3dvg)
 
 set(APPLICATION_SRC
   src/crazyswarm_app.cpp
@@ -69,17 +70,23 @@ add_executable(${PROJECT_NAME}_node
   src/common.cpp
   ${ORCA_SRC}
   external/kdtree/kdtree.c
+  external/3dvg/src/visibility.cpp
+  external/3dvg/VisiLibity1/src/visilibity.cpp
+)
+target_include_directories(
+  ${PROJECT_NAME}_node PUBLIC
+  external/3dvg/src
+  external/3dvg/VisiLibity1/src
 )
 add_dependencies(${PROJECT_NAME}_node ${PROJECT_NAME})
 target_link_libraries(${PROJECT_NAME}_node 
-  gtsam visibility_graph
+  gtsam
   "${PROJECT_NAME}__rosidl_typesupport_cpp")
 ament_target_dependencies(${PROJECT_NAME}_node
   rclcpp
   sensor_msgs
   std_srvs
   crazyflie_interfaces
-  motion_capture_tracking_interfaces
   visualization_msgs
   tf2_ros
   apriltag_msgs

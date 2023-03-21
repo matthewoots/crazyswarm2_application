@@ -1,6 +1,7 @@
 environment:
   obstacles: 
     obs0:
+      use_key_point: false
       height: [0.0, 2.5]
       thickness: 0.2
       points: [
@@ -12,6 +13,7 @@ environment:
         1.0, -3.0
       ]
     obs1:
+      use_key_point: false
       height: [0.0, 2.5]
       thickness: 0.2
       points: [

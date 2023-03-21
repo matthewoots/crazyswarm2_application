@@ -38,8 +38,8 @@
 #include "crazyswarm_application/msg/agents_state_feedback.hpp"
 #include "crazyswarm_application/msg/agent_state.hpp"
 
-#include "motion_capture_tracking_interfaces/msg/named_pose_array.hpp"
-#include "motion_capture_tracking_interfaces/msg/named_pose.hpp"
+#include "crazyswarm_application/msg/named_pose_array.hpp"
+#include "crazyswarm_application/msg/named_pose.hpp"
 
 #include "apriltag_msgs/msg/april_tag_detection_array.hpp"
 #include "apriltag_msgs/msg/april_tag_detection.hpp" 
@@ -86,8 +86,8 @@ using geometry_msgs::msg::Point;
 using geometry_msgs::msg::Twist;
 using geometry_msgs::msg::TransformStamped;
 
-using motion_capture_tracking_interfaces::msg::NamedPoseArray;
-using motion_capture_tracking_interfaces::msg::NamedPose;
+using crazyswarm_application::msg::NamedPoseArray;
+using crazyswarm_application::msg::NamedPose;
 
 using visualization_msgs::msg::MarkerArray;
 using visualization_msgs::msg::Marker;
@@ -337,6 +337,11 @@ namespace cs2
                     }
                 }
 
+                std::vector<visibility_graph::obstacle> global_obstacle_list;
+                load_obstacle_map(parameter_overrides, global_obstacle_list);
+                global_obstacle_map.obs = global_obstacle_list;
+                global_obstacle_map.inflation = protected_zone;
+
                 pose_publisher = 
                     this->create_publisher<NamedPoseArray>("poses", 7);
                 
@@ -347,7 +352,7 @@ namespace cs2
                     this->create_publisher<AgentsStateFeedback>("agents", 7);
 
                 subscription_user = 
-                    this->create_subscription<UserCommand>("user", 7, std::bind(&cs2_application::user_callback, this, _1));
+                    this->create_subscription<UserCommand>("user", 20, std::bind(&cs2_application::user_callback, this, _1));
 
                 takeoff_all_client = this->create_client<Takeoff>("/all/takeoff");
                 land_all_client = this->create_client<Land>("/all/land");
@@ -399,6 +404,8 @@ namespace cs2
             Eigen::Affine3d nwu_to_enu;
 
             Eigen::Affine3d static_camera_transform;
+
+            visibility_graph::global_map global_obstacle_map;
 
             rclcpp::Client<Takeoff>::SharedPtr takeoff_all_client;
             rclcpp::Client<Land>::SharedPtr land_all_client;

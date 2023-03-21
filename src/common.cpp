@@ -325,3 +325,92 @@ std::vector<visibility_graph::obstacle> common::generate_disjointed_wall(
         }
     }
 }
+
+void common::load_obstacle_map(
+    std::map<std::string, rclcpp::ParameterValue> parameter_overrides,
+    std::vector<visibility_graph::obstacle> &obstacle_map)
+{
+    auto obstacles = extract_names(parameter_overrides, "environment.obstacles");
+    for (const auto &obs : obstacles) 
+    {
+        bool use_key_point =
+            parameter_overrides.at("environment.obstacles." + obs + ".use_key_point").get<bool>();
+
+        std::vector<double> height_list = 
+            parameter_overrides.at("environment.obstacles." + obs + ".height").get<std::vector<double>>();
+        double thickness = 
+            parameter_overrides.at("environment.obstacles." + obs + ".thickness").get<double>();
+        std::vector<double> vertices_list = 
+            parameter_overrides.at("environment.obstacles." + obs + ".points").get<std::vector<double>>();
+
+        std::vector<Eigen::Vector2d> vertices;
+        if (use_key_point)
+        {
+            vertices.emplace_back(Eigen::Vector2d(vertices_list[0], vertices_list[1]));
+            for (size_t i = 1; i < vertices_list.size()/2; i++)
+                vertices.emplace_back(vertices.back() +
+                    Eigen::Vector2d(vertices_list[i*2+0], vertices_list[i*2+1]));
+        }
+        else
+        {
+            for (size_t i = 0; i < vertices_list.size()/2; i++)
+                vertices.emplace_back(
+                    Eigen::Vector2d(vertices_list[i*2+0], vertices_list[i*2+1]));
+        }
+
+        std::vector<visibility_graph::obstacle> obstacle_list =
+            generate_disjointed_wall(vertices, 
+            std::make_pair(height_list[0], height_list[1]), thickness);
+        
+        for (auto &obs : obstacle_list)
+            obstacle_map.emplace_back(obs);
+        
+        // double eps = 0.0001;
+        // std::vector<Eigen::Vector2d> vert_list = obstacle_list.front().v;
+        // // connect the disjointed wall obstacle
+        // for (size_t x = 1; x < obstacle_list.size(); x++)
+        // {
+        //     bool found = false;
+        //     size_t yi, yj, xi, xj;
+            
+        //     // iterate through the vertices list (the accumulated list)
+        //     for (yi = 0; yi < vert_list.size(); yi++)
+        //     {
+        //         yj = (yi + 1) % (vert_list.size());
+        //         // iterate through the obstacle vertices
+        //         for (xi = 0; xi < obstacle_list[x].v.size(); xi++)
+        //         {
+        //             xj = (xi + 1) % (obstacle_list[x].v.size());
+
+        //             // std::cout << "yij(" << yi << " " << yj << ") " << 
+        //             //     "xij(" << xi << " " << xj << ") " << 
+        //             //     (obstacle_list[x].v[xi] - vert_list[yj]).norm() <<
+        //             //     " " << (obstacle_list[x].v[xj] - vert_list[yi]).norm() << std::endl;
+        //             if ((obstacle_list[x].v[xi] - vert_list[yj]).norm() < eps
+        //                 && (obstacle_list[x].v[xj] - vert_list[yi]).norm() < eps)
+        //             {
+        //                 found = true;
+        //                 break;
+        //             }
+        //         }
+
+        //         if (found)
+        //         {
+        //             // after yi push in xj -> xi
+        //             for (size_t zi = 0; zi < obstacle_list[x].v.size() - 2; zi++)
+        //             {
+        //                 size_t v = (xj + zi + 1) % (obstacle_list[x].v.size());
+        //                 auto iter_position = vert_list.begin() + yi + zi + 1;
+        //                 vert_list.insert(iter_position, obstacle_list[x].v[v]);
+        //             }
+        //             break;
+        //         }
+        //     }
+        // }
+        // visibility_graph::obstacle joint_obstacle;
+        // joint_obstacle.v = vert_list;
+        // joint_obstacle.h = std::make_pair(height_list[0], height_list[1]);
+        // obstacle_map.emplace_back(joint_obstacle);
+    }
+}
+

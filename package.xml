@@ -22,7 +22,6 @@
   <build_depend>GTSAM</build_depend>
 
   <build_depend>crazyflie_interfaces</build_depend>
-  <build_depend>motion_capture_tracking_interfaces</build_depend>
   <build_depend>apriltag_msgs</build_depend>
 
   <test_depend>ament_lint_auto</test_depend>

@@ -34,7 +34,8 @@ cd <to-your-preferred-directory>/crazyswarm2_ws/src
 git clone git@github.com:matthewoots/apriltag_msgs.git --branch crazyflie
 git clone git@github.com:matthewoots/apriltag_ros.git --branch crazyflie
 git clone git@github.com:matthewoots/crazyswarm2.git --branch crazyflie --recursive
-git clone --branch ros2 --recursive https://github.com/IMRCLab/motion_capture_tracking.git
+# The motion_capture tracking has been removed, since we only need the external pose message to link up with crazyswarm2 interface
+# git clone --branch ros2 --recursive https://github.com/IMRCLab/motion_capture_tracking.git
 git clone git@github.com:matthewoots/crazyswarm2_application.git --recursive
 git clone git@github.com:teamspatzenhirn/rviz_2d_overlay_plugins.git
 ```
@@ -155,7 +156,7 @@ command_sequence: [
 # [5] pose in XYZ "1 1 1", if nothing leave empty ""
 ```
 
-For running `external modules` please refer to `launch/mission/test_external.yaml` where the example command sequence is shown below, a timeout period is given, so that if there is no command given during a timeframe, it will be considered completed and move on to the next mission in the list 
+For running `external modules` please refer to `launch/mission/external_sample.yaml` where the example command sequence is shown below, a timeout period is given, so that if there is no command given during a timeframe, it will be considered completed and move on to the next mission in the list 
 ```yaml
 "external", "wait", "cf1", "", ""
 ```

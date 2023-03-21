@@ -56,9 +56,26 @@ void cs2::cs2_application::user_callback(
                  while (!iterator_states->second.target_queue.empty())
                     iterator_states->second.target_queue.pop();
 
-            iterator_states->second.target_queue.push(
-                Eigen::Vector3d(copy.goal.x, copy.goal.y, copy.goal.z)
-            );
+            global_obstacle_map.start_end.first = 
+                iterator_states->second.transform.translation();
+            global_obstacle_map.start_end.second = 
+                Eigen::Vector3d(copy.goal.x, copy.goal.y, copy.goal.z);
+            std::string frame = "nwu";
+            visibility_graph::visibility vg(global_obstacle_map, frame, 1);
+
+            // vg.calculate_path(true);
+            vg.calculate_path(false);
+
+            std::vector<Eigen::Vector3d> visibility_path = vg.get_path();
+            if (!visibility_path.empty())
+            {
+                for (auto &target : visibility_path)
+                    iterator_states->second.target_queue.push(target);
+            }
+
+            // iterator_states->second.target_queue.push(
+            //     Eigen::Vector3d(copy.goal.x, copy.goal.y, copy.goal.z)
+            // );
 
             iterator_states->second.flight_state = MOVE_VELOCITY;
             iterator_states->second.completed = false;
@@ -280,7 +297,7 @@ void cs2::cs2_application::pose_callback(
                 auto result = 
                     it_comm->second.emergency->async_send_request(request);
 
-                state->second.flight_state = IDLE;
+                state->second.flight_state = EMERGENCY;
                 state->second.radio_connection = false;
                 state->second.completed = false;
             }

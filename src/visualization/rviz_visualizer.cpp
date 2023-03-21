@@ -172,6 +172,9 @@ class RvizVisualizer : public rclcpp::Node
                 case LAND:
                     text += "LND";
                     break;
+                case EMERGENCY:
+                    text += "EMG";
+                    break;
                 default:
                     text += "ERR";
                     break;
@@ -341,28 +344,7 @@ class RvizVisualizer : public rclcpp::Node
                 node_parameters_iface->get_parameter_overrides();
 
             load_april_tags(parameter_overrides, april_tags, 0.0, true);
-
-            auto obstacles = extract_names(parameter_overrides, "environment.obstacles");
-            for (const auto &obs : obstacles) 
-            {
-                std::vector<double> height_list = 
-                    parameter_overrides.at("environment.obstacles." + obs + ".height").get<std::vector<double>>();
-                double thickness = 
-                    parameter_overrides.at("environment.obstacles." + obs + ".thickness").get<double>();
-                std::vector<double> vertices_list = 
-                    parameter_overrides.at("environment.obstacles." + obs + ".points").get<std::vector<double>>();
-                std::vector<Eigen::Vector2d> vertices;
-                for (size_t i = 0; i < vertices_list.size()/2; i++)
-                    vertices.emplace_back(
-                        Eigen::Vector2d(vertices_list[i*2+0], vertices_list[i*2+1]));
-                
-                std::vector<visibility_graph::obstacle> obstacle_list =
-                    generate_disjointed_wall(vertices, 
-                    std::make_pair(height_list[0], height_list[1]), thickness);
-                
-                for (auto &obs : obstacle_list)
-                    global_obstacle_list.emplace_back(obs);
-            }
+            load_obstacle_map(parameter_overrides, global_obstacle_list);
 
             agent_state_subscriber = 
                 this->create_subscription<AgentsStateFeedback>("agents",

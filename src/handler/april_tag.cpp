@@ -303,7 +303,7 @@ void cs2::cs2_application::handle_eliminate(
     s->second.target_queue.push(Eigen::Vector3d(
         tag_to_world.translation().x(),
         tag_to_world.translation().y(),
-        s->second.transform.translation().z()));
+        s->second.transform.translation().z()/1.5));
 
     april_found.insert({t.id, 
         Eigen::Vector2d(tag_to_world.translation().x(),

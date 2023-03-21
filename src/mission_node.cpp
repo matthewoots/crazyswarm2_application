@@ -60,7 +60,8 @@ class mission_handler : public rclcpp::Node
             bool sent_mission;
         };
 
-        double external_msg_threshold = 5.0;
+        double external_msg_threshold;
+        double protected_zone;
 
         string_dictionary dict;
         
@@ -102,6 +103,13 @@ class mission_handler : public rclcpp::Node
             std::vector<std::string> command_vector = 
                 this->get_parameter("command_sequence").get_parameter_value().get<std::vector<std::string>>();
             
+            this->declare_parameter("external_timeout", -1.0);
+            this->declare_parameter("trajectory_parameters.protected_zone", -1.0);
+            external_msg_threshold = 
+                this->get_parameter("external_timeout").get_parameter_value().get<double>();
+            protected_zone =
+                this->get_parameter("trajectory_parameters.protected_zone").get_parameter_value().get<double>();
+
             // number of segments per command
             int command_segments = 5;
 
@@ -167,7 +175,7 @@ class mission_handler : public rclcpp::Node
             }
 
             command_publisher = 
-                this->create_publisher<UserCommand>("user", 5);
+                this->create_publisher<UserCommand>("user", 20);
             agent_state_subscription = 
                 this->create_subscription<AgentsStateFeedback>("agents", 
                 2, std::bind(&mission_handler::agent_event_callback, this, _1));
@@ -228,8 +236,8 @@ class mission_handler : public rclcpp::Node
                 if (it == agents_description.end())
                     continue;
                 
-                // remove if flight state is internal tracking
-                if (agent.flight_state == INTERNAL_TRACKING)
+                // remove if flight state is internal tracking or emergency
+                if (agent.flight_state == INTERNAL_TRACKING || agent.flight_state == EMERGENCY)
                     agents_description.erase(it);
                 else
                 {
@@ -390,20 +398,61 @@ class mission_handler : public rclcpp::Node
                 else if(strcmp(cmd->task.c_str(), 
                     dict.go_to_velocity.c_str()) == 0)
                 {
-                    UserCommand command;
-                    command.cmd = "goto_velocity";
                     std::string acc_id;
 
+                    // do movement deconfliction
+                    // each drone is represented by a protected zone (in a square form)
+                    std::vector<Eigen::Vector2d> occupied_polygon;
+
+                    Eigen::Vector3d center = Eigen::Vector3d(
+                        cmd->target[0], cmd->target[1], cmd->target[2]);                    
+
                     // "all"
-                    if (strcmp(cmd->agents[0].c_str(), dict.all.c_str()) == 0) 
+                    if (strcmp(cmd->agents[0].c_str(), dict.all.c_str()) == 0)
+                    { 
+                        size_t size_agents = agents_description.size();
+                        size_t division = 1, count = 0;
+                        while (size_agents > std::pow(division,2))
+                            division++;
+
+                        double offset_from_center = 
+                            (2*protected_zone) * double(division) / 2.0;
+                        
                         for (auto &[key, state] : agents_description)
                         {
+                            size_t size_agents = agents_description.size();
+                            UserCommand command;
+                            command.cmd = "goto_velocity";
                             command.uav_id.push_back(key);
                             acc_id += key;
+
+                            // command.goal.x = cmd->target[0];
+                            // command.goal.y = cmd->target[1];
+                            // command.goal.z = cmd->target[2];
+
+                            command.goal.x = cmd->target[0] - 
+                                offset_from_center + (double)(count / division) * 2*protected_zone;
+                            command.goal.y = cmd->target[1] - 
+                                offset_from_center + (double)(count % division) * 2*protected_zone;
+                            command.goal.z = cmd->target[2];
+
+                            command.yaw = cmd->target[3];
+                            
+                            command_publisher->publish(command);
+                            count++;
                         }
+                    }
                     // "individual"
                     else
                     {
+                        size_t size_agents = cmd->agents.size();
+                        size_t division = 1, count = 0;
+                        while (size_agents > std::pow(division,2))
+                            division++;
+
+                        double offset_from_center = 
+                            (2*protected_zone) * double(division) / 2.0;
+
                         for (auto &agent : cmd->agents)
                         {
                             std::map<std::string, agent_state>::iterator it = 
@@ -412,17 +461,28 @@ class mission_handler : public rclcpp::Node
                             if (it == agents_description.end())
                                 continue;
                             
+                            UserCommand command;
+                            command.cmd = "goto_velocity";
                             command.uav_id.push_back(it->first);
                             acc_id += it->first;
+
+                            // command.goal.x = cmd->target[0];
+                            // command.goal.y = cmd->target[1];
+                            // command.goal.z = cmd->target[2];
+
+                            command.goal.x = cmd->target[0] - 
+                                offset_from_center + (double)(count / division) * 2*protected_zone;
+                            command.goal.y = cmd->target[1] - 
+                                offset_from_center + (double)(count % division) * 2*protected_zone;
+                            command.goal.z = cmd->target[2];
+
+                            command.yaw = cmd->target[3];
+                            
+                            command_publisher->publish(command);
+                            count++;
                         }
                     }
-                        
-                    command.goal.x = cmd->target[0];
-                    command.goal.y = cmd->target[1];
-                    command.goal.z = cmd->target[2];
-                    command.yaw = cmd->target[3];
                     
-                    command_publisher->publish(command);
                     cmd->sent_mission = true;
                     
                     RCLCPP_INFO(this->get_logger(), "Sent %s goto_velocity", 
@@ -587,6 +647,9 @@ class mission_handler : public rclcpp::Node
                     break;
                 case LAND:
                     std::cout << "LAND";
+                    break;
+                case EMERGENCY:
+                    std::cout << "EMERGENCY";
                     break;
                 default:
                     std::cout << "ERROR";

@@ -1,0 +1,136 @@
+environment:
+  obstacles: 
+    # length 2.0 width 0.90
+    obs0:
+      use_key_point: true
+      height: [0.0, 1.5]
+      thickness: 0.8
+      points: [
+        2.525, 1.00,
+        -0.90, -0.0, 
+        0.0, -2.0,
+        0.90, 0.0
+      ]
+
+# https://github.com/rgov/apriltag-pdfs
+april_tags:
+  # default is top-left
+  pair_position: [-0.1545, -0.1145, -0.1545, -0.2365]
+  # default is A3 paper size, A4 on each side
+  pair_paper_size: [0.297, 0.420]
+  tags:
+    # tag 000 to 011 are mounted to the start board 
+    # reserved
+    # corrugated board 1.22 * 2.455
+    id000 id001:
+      alignment: "bottom-left"
+      location: [-0.895, 1.2275]
+      purpose: relocalization
+    id002 id003:
+      alignment: "bottom-left"
+      location: [-0.895, 0.0]
+      purpose: relocalization
+    id004 id005:
+      alignment: "bottom-right"
+      location: [-0.895, -1.2275]
+      purpose: relocalization
+    id006 id007:
+      alignment: "bottom-left"
+      location: [-2.412, 1.2275]
+      purpose: relocalization
+    id008 id009:
+      alignment: "bottom-left"
+      location: [-2.412, 0.0]
+      purpose: relocalization
+    id010 id011:
+      alignment: "bottom-right"
+      location: [-2.412, -1.2275]
+      purpose: relocalization
+    
+
+    # first row
+    id012 id013:
+      alignment: "bottom-left"
+      location: [0.0, 2.55]
+      purpose: relocalization
+    id014 id015:
+      alignment: "bottom-right"
+      location: [0.0, -2.55]
+      purpose: relocalization
+
+    # second row
+    id016 id017:
+      alignment: "top-left"
+      location: [1.30, 0.76]
+      purpose: relocalization
+    id018 id019:
+      alignment: "top-right"
+      location: [1.30, -0.76]
+      purpose: relocalization
+    
+    # third row
+    id020 id021:
+      alignment: "bottom-left"
+      location: [1.995, 2.55]
+      purpose: relocalization
+    id022 id023:
+      alignment: "bottom-right"
+      location: [1.995, -2.55]
+      purpose: relocalization
+    
+    # fourth row
+    id024 id025:
+      alignment: "bottom-left"
+      location: [3.99, 2.55]
+      purpose: relocalization
+    id026 id027:
+      alignment: "bottom-left"
+      location: [3.99, -0.02]
+      purpose: relocalization
+    id028 id029:
+      alignment: "bottom-right"
+      location: [3.99, -2.55]
+      purpose: relocalization
+
+    # fifth row
+    id030 id031:
+      alignment: "top-left"
+      location: [7.87, 2.55]
+      purpose: relocalization
+    id032 id033:
+      alignment: "top-left"
+      location: [7.87, -0.02]
+      purpose: relocalization
+    id034 id035:
+      alignment: "top-right"
+      location: [7.87, -2.55]
+      purpose: relocalization
+
+    id100:
+      # location: [3.0, 1.0]
+      location: [0.0]
+      purpose: eliminate
+    id101:
+      # location: [3.0, 0.0]
+      location: [0.0]
+      purpose: eliminate
+    id102:
+      # location: [4.0, 0.0]
+      location: [0.0]
+      purpose: eliminate
+    id103:
+      # location: [3.0, 0.0]
+      location: [0.0]
+      purpose: eliminate
+    id104:
+      # location: [4.0, 0.0]
+      location: [0.0]
+      purpose: eliminate
+    id105:
+      # location: [4.0, 0.0]
+      location: [0.0]
+      purpose: eliminate
+    id106:
+      # location: [4.0, 0.0]
+      location: [0.0]
+      purpose: eliminate
