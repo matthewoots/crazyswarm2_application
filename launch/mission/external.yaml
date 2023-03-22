@@ -1,5 +1,7 @@
 command_sequence: [
   "takeoff", "wait", "all", "", "",
-  "external", "wait", "cf1", "", "",
+  "hold", "wait", "all", "2.0", "",
+  "external", "wait", "", "", "",
+  "hold", "wait", "all", "2.0", "",
   "land", "wait", "all", "", ""
 ]

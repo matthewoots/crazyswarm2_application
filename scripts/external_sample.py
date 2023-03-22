@@ -43,7 +43,10 @@ class ExternalPublisher(Node):
 
 
 def main():
-    print('Number of arguments:', len(sys.argv), 'arguments.')
+    
+    if (len(sys.argv) == 1):
+        print('invalid number of arguments', len(sys.argv))
+        exit()
     agent_list = {}
     count = 0
     for arg in sys.argv[1:]:

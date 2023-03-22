@@ -119,6 +119,7 @@ namespace cs2
                 this->declare_parameter("queue_size", 1);
 
                 this->declare_parameter("trajectory_parameters.max_velocity", -1.0);
+                this->declare_parameter("trajectory_parameters.maximum_yaw_change", -1.0);
                 this->declare_parameter("trajectory_parameters.takeoff_land_velocity", -1.0);
                 this->declare_parameter("trajectory_parameters.takeoff_height", -1.0);
                 this->declare_parameter("trajectory_parameters.reached_threshold", -1.0);
@@ -141,6 +142,8 @@ namespace cs2
 
                 max_velocity = 
                     this->get_parameter("trajectory_parameters.max_velocity").get_parameter_value().get<double>();
+                maximum_yaw_change = 
+                    this->get_parameter("trajectory_parameters.maximum_yaw_change").get_parameter_value().get<double>();
                 takeoff_land_velocity = 
                     this->get_parameter("trajectory_parameters.takeoff_land_velocity").get_parameter_value().get<double>();
                 takeoff_height = 
@@ -383,6 +386,7 @@ namespace cs2
             bool center_origin;
 
             double max_velocity;
+            double maximum_yaw_change;
             double takeoff_land_velocity;
             double takeoff_height;
             double reached_threshold;

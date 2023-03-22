@@ -25,94 +25,102 @@ void cs2::cs2_application::conduct_planning(
     if (it == rvo_agents.end())
         return;
 
-    // Construct KD-tree
-    kd_tree = kd_create(3);
-    for (auto &[key, agent] : agents_states)
-    { 
-        if (strcmp(mykey.c_str(), key.c_str()) == 0)
-            continue;
-        Eval_agent *node = new Eval_agent;
-        node->position_ = agent.transform.translation().cast<float>();
-        node->velocity_ = agent.velocity.cast<float>();
-        node->radius_ = (float)protected_zone;
-        int v = kd_insert3(
-            kd_tree, node->position_.x(), 
-            node->position_.y(), node->position_.z(),
-            node);
-    }
-
-    struct kdres *neighbours;
-    neighbours = kd_nearest_range3(
-        kd_tree, state.transform.translation().x(), 
-        state.transform.translation().y(), 
-        state.transform.translation().z(),
-        communication_radius);
-
-    float communication_radius_float = (float)communication_radius;
-
-    // clear agent neighbour before adding in new neighbours and obstacles
-    it->second.clearAgentNeighbor();
-
-    while (!kd_res_end(neighbours))
+    if (agents_states.size() > 1)
     {
-        double pos[3];
-        Eval_agent *agent = (Eval_agent*)kd_res_item(neighbours, pos);
-        
-        it->second.insertAgentNeighbor(*agent, communication_radius_float);
-        // store range query result so that we dont need to query again for rewire;
-        kd_res_next(neighbours); // go to next in kd tree range query result
-    }
+        // Construct KD-tree
+        kd_tree = kd_create(3);
 
-    kd_free(kd_tree);
+        for (auto &[key, agent] : agents_states)
+        { 
+            if (strcmp(mykey.c_str(), key.c_str()) == 0)
+                continue;
+            Eval_agent *node = new Eval_agent;
+            node->position_ = agent.transform.translation().cast<float>();
+            node->velocity_ = agent.velocity.cast<float>();
+            node->radius_ = (float)protected_zone;
+            int v = kd_insert3(
+                kd_tree, node->position_.x(), 
+                node->position_.y(), node->position_.z(),
+                node);
+        }
+
+        struct kdres *neighbours;
+        neighbours = kd_nearest_range3(
+            kd_tree, state.transform.translation().x(), 
+            state.transform.translation().y(), 
+            state.transform.translation().z(),
+            communication_radius);
+
+        float communication_radius_float = (float)communication_radius;
+
+        // clear agent neighbour before adding in new neighbours and obstacles
+        it->second.clearAgentNeighbor();
+
+        while (!kd_res_end(neighbours))
+        {
+            double pos[3];
+            Eval_agent *agent = (Eval_agent*)kd_res_item(neighbours, pos);
+            
+            it->second.insertAgentNeighbor(*agent, communication_radius_float);
+            // store range query result so that we dont need to query again for rewire;
+            kd_res_next(neighbours); // go to next in kd tree range query result
+        }
+
+        kd_free(kd_tree);
+    }
 
     // add in the static obstacles as static neighbours
     // find the obstacles that lie on the plane first
-    visibility_graph::global_map copy = global_obstacle_map;
-    copy.start_end.first = state.transform.translation();
-    copy.t = visibility_graph::get_affine_transform(
-        copy.start_end.first, Eigen::Vector3d(0.0, 0.0, 0.0), "nwu");
-
-    // check all obstacles and add in edges that may have collision
-    std::vector<visibility_graph::obstacle> rot_polygons;
-    std::vector<Eigen::Vector3d> debug_point_vertices;
-    visibility_graph::get_polygons_on_plane(
-        copy, Eigen::Vector3d(0.0, 0.0, 1.0), 
-        rot_polygons, debug_point_vertices);
-    
-    // threshold is communication_radius
-    for (auto &poly : rot_polygons)
+    if (!global_obstacle_map.obs.empty())
     {
-        size_t count = 0;
-        for (size_t i = 0; i < poly.v.size(); i++)
+        float communication_radius_float = (float)communication_radius;
+        visibility_graph::global_map copy = global_obstacle_map;
+        copy.start_end.first = state.transform.translation();
+        copy.t = visibility_graph::get_affine_transform(
+            copy.start_end.first, Eigen::Vector3d(0.0, 0.0, 0.0), "nwu");
+
+        // check all obstacles and add in edges that may have collision
+        std::vector<visibility_graph::obstacle> rot_polygons;
+        std::vector<Eigen::Vector3d> debug_point_vertices;
+        visibility_graph::get_polygons_on_plane(
+            copy, Eigen::Vector3d(0.0, 0.0, 1.0), 
+            rot_polygons, debug_point_vertices);
+        
+        // threshold is communication_radius
+        for (auto &poly : rot_polygons)
         {
-            size_t j = (i + 1) % (poly.v.size());
-            double distance;
-            Eigen::Vector2d closest_point;
-
-            visibility_graph::get_point_to_line(
-                Eigen::Vector2d::Zero(), poly.v[i], poly.v[j],
-                distance, closest_point);
-            if (distance < communication_radius)
+            size_t count = 0;
+            for (size_t i = 0; i < poly.v.size(); i++)
             {
-                // distribute from poly.v[i] poly.v[j]
-                Eigen::Vector3d vi = 
-                    copy.t.inverse() * Eigen::Vector3d(poly.v[i].x(), poly.v[i].y(), 0.0);
-                Eigen::Vector3d vj = 
-                    copy.t.inverse() * Eigen::Vector3d(poly.v[j].x(), poly.v[j].y(), 0.0);
-                size_t div = (size_t)std::ceil((vj - vi).norm() / (protected_zone * 2.0));
-                double separation = (vj - vi).norm() / div;
-                Eigen::Vector3d dir = (vj - vi).normalized();
+                size_t j = (i + 1) % (poly.v.size());
+                double distance;
+                Eigen::Vector2d closest_point;
 
-                for (size_t j = 0; j < div; j++)
+                visibility_graph::get_point_to_line(
+                    Eigen::Vector2d::Zero(), poly.v[i], poly.v[j],
+                    distance, closest_point);
+                if (distance < communication_radius)
                 {
-                    Eval_agent static_point;
-                    static_point.position_ = (vi + dir * j * separation).cast<float>();
-                    static_point.velocity_ = Eigen::Vector3f::Zero();
-                    static_point.radius_ = (float)protected_zone/2;
-                    it->second.insertAgentNeighbor(static_point, communication_radius_float);
-                    // std::cout << mykey << " obstacle_static " << static_point.position_.transpose() << std::endl;
+                    // distribute from poly.v[i] poly.v[j]
+                    Eigen::Vector3d vi = 
+                        copy.t.inverse() * Eigen::Vector3d(poly.v[i].x(), poly.v[i].y(), 0.0);
+                    Eigen::Vector3d vj = 
+                        copy.t.inverse() * Eigen::Vector3d(poly.v[j].x(), poly.v[j].y(), 0.0);
+                    size_t div = (size_t)std::ceil((vj - vi).norm() / (protected_zone * 2.0));
+                    double separation = (vj - vi).norm() / div;
+                    Eigen::Vector3d dir = (vj - vi).normalized();
+
+                    for (size_t j = 0; j < div; j++)
+                    {
+                        Eval_agent static_point;
+                        static_point.position_ = (vi + dir * j * separation).cast<float>();
+                        static_point.velocity_ = Eigen::Vector3f::Zero();
+                        static_point.radius_ = (float)protected_zone/2;
+                        it->second.insertAgentNeighbor(static_point, communication_radius_float);
+                        // std::cout << mykey << " obstacle_static " << static_point.position_.transpose() << std::endl;
+                    }
+                    count++;
                 }
-                count++;
             }
         }
     }
@@ -136,6 +144,8 @@ void cs2::cs2_application::handler_timer_callback()
 {
     AgentsStateFeedback agents_feedback;
     MarkerArray target_array;
+
+    double rad_to_deg = 180.0 / M_PI;
 
     // Iterate through the agents
     for (auto &[key, agent] : agents_states)
@@ -167,7 +177,7 @@ void cs2::cs2_application::handler_timer_callback()
                 vel_msg.vel.y = vel_target.y();
                 vel_msg.vel.z = vel_target.z();
                 vel_msg.height = agent.previous_target.z();
-                vel_msg.yaw = agent.previous_yaw;
+                vel_msg.yaw = agent.previous_yaw * rad_to_deg;
                 auto it = agents_comm.find(key);
                 if (it != agents_comm.end())
                     it->second.vel_world_publisher->publish(vel_msg);
@@ -241,6 +251,7 @@ void cs2::cs2_application::handler_timer_callback()
                         euler_rpy(agent.transform.linear());
                     agent.previous_yaw = rpy.z();
                     agent.target_queue.pop();
+                    break;
                 }
                 else if (pose_difference < max_velocity)
                     vel_target = 
@@ -266,22 +277,23 @@ void cs2::cs2_application::handler_timer_callback()
                     euler_rpy(agent.transform.linear());
                 
                 double yaw_target;
-                double maximum_yaw_change = 3.0;
-                if (agent.target_yaw - rpy.z() < -180.0)
-                    yaw_target = agent.target_yaw - (rpy.z() - 360.0);
-                else if (agent.target_yaw - rpy.z() > 180.0)
-                    yaw_target = agent.target_yaw - (rpy.z() + 360.0);
+                if (agent.target_yaw - rpy.z() * rad_to_deg < -180.0)
+                    yaw_target = agent.target_yaw - (rpy.z() * rad_to_deg - 360.0);
+                else if (agent.target_yaw - rpy.z() * rad_to_deg > 180.0)
+                    yaw_target = agent.target_yaw - (rpy.z() * rad_to_deg + 360.0);
                 else
-                    yaw_target = agent.target_yaw - rpy.z();
+                    yaw_target = agent.target_yaw - rpy.z() * rad_to_deg;
 
+                // std::cout << yaw_target << std::endl;
                 double dir = yaw_target / std::abs(yaw_target);
                 yaw_target = std::min(std::abs(yaw_target), maximum_yaw_change);                
                 yaw_target *= dir;
-                yaw_target += rpy.z();
+                yaw_target += rpy.z() * rad_to_deg;
 
-                std::cout << rpy.transpose() << std::endl;
-                // vel_msg.yaw = wrap_pi(yaw_target);
-                vel_msg.yaw = agent.target_yaw;
+                // std::cout << rpy.z() << "/" << wrap_pi(yaw_target) / rad_to_deg << std::endl;
+                vel_msg.yaw = wrap_pi(yaw_target);
+                // vel_msg.yaw = yaw_target;
+                // vel_msg.yaw = agent.target_yaw;
                 // vel_msg.yaw = 0.0;
                 
                 auto it = agents_comm.find(key);

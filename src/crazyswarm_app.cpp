@@ -56,27 +56,33 @@ void cs2::cs2_application::user_callback(
                  while (!iterator_states->second.target_queue.empty())
                     iterator_states->second.target_queue.pop();
 
-            global_obstacle_map.start_end.first = 
-                iterator_states->second.transform.translation();
-            global_obstacle_map.start_end.second = 
-                Eigen::Vector3d(copy.goal.x, copy.goal.y, copy.goal.z);
-            std::string frame = "nwu";
-            visibility_graph::visibility vg(global_obstacle_map, frame, 1);
-
-            // vg.calculate_path(true);
-            vg.calculate_path(false);
-
-            std::vector<Eigen::Vector3d> visibility_path = vg.get_path();
-            if (!visibility_path.empty())
+            // only do visibility when obs are empty
+            if (!global_obstacle_map.obs.empty())
             {
-                for (auto &target : visibility_path)
-                    iterator_states->second.target_queue.push(target);
+                global_obstacle_map.start_end.first = 
+                    iterator_states->second.transform.translation();
+                global_obstacle_map.start_end.second = 
+                    Eigen::Vector3d(copy.goal.x, copy.goal.y, copy.goal.z);
+                std::string frame = "nwu";
+                visibility_graph::visibility vg(global_obstacle_map, frame, 1);
+
+                // vg.calculate_path(true);
+                vg.calculate_path(false);
+
+                std::vector<Eigen::Vector3d> visibility_path = vg.get_path();
+                if (!visibility_path.empty())
+                {
+                    for (auto &target : visibility_path)
+                        iterator_states->second.target_queue.push(target);
+                }
             }
-
-            // iterator_states->second.target_queue.push(
-            //     Eigen::Vector3d(copy.goal.x, copy.goal.y, copy.goal.z)
-            // );
-
+            else
+            {
+                iterator_states->second.target_queue.push(
+                    Eigen::Vector3d(copy.goal.x, copy.goal.y, copy.goal.z)
+                );
+            }
+            
             iterator_states->second.flight_state = MOVE_VELOCITY;
             iterator_states->second.completed = false;
             iterator_states->second.target_yaw = copy.yaw;
@@ -287,7 +293,7 @@ void cs2::cs2_application::pose_callback(
     Eigen::Vector3d rpy = euler_rpy(state->second.transform.linear());
     // RCLCPP_INFO(this->get_logger(), "(%s) %lf %lf %lf", state->first.c_str(), 
     //     rpy[0], rpy[1], rpy[2]);
-    for (size_t i = 0; i < 3; i++)
+    for (size_t i = 0; i < 2; i++)
         if (rpy[i] > flip_threshold)
         {
             std::map<std::string, agent_struct>::iterator it_comm = 

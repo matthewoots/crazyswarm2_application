@@ -218,8 +218,9 @@ class mission_handler : public rclcpp::Node
             commander ext;
             ext.task = "goto_velocity";
 
-            for (std::string agent : msg->uav_id)
-                ext.agents.push_back(agent);
+            if (!msg->uav_id.empty())
+                for (std::string agent : msg->uav_id)
+                    ext.agents.push_back(agent);
             
             ext.target = Eigen::Vector4d(
                 msg->goal.x, msg->goal.y, msg->goal.z, msg->yaw
@@ -364,7 +365,7 @@ class mission_handler : public rclcpp::Node
                 if (cmd->sent_mission)
                     continue;
 
-                if (cmd->agents.empty())
+                if (cmd->agents.empty() && strcmp(cmd->task.c_str(), dict.external.c_str()) != 0)
                     throw std::invalid_argument("empty agent list");
 
                 // "takeoff"
@@ -597,20 +598,22 @@ class mission_handler : public rclcpp::Node
                     while (!external_command_queue.empty())
                     {
                         UserCommand command;
-                        command.cmd = external_command_queue.front().task;
+                        // command.cmd = external_command_queue.front().task;
+                        command.cmd = "goto_velocity";
                         std::string acc_id;
                         // "individual"
-                        for (auto &agent : external_command_queue.front().agents)
-                        {
-                            std::map<std::string, agent_state>::iterator it = 
-                                agents_description.find(agent);
-                            
-                            if (it == agents_description.end())
-                                continue;
-                            
-                            command.uav_id.push_back(it->first);
-                            acc_id += it->first;
-                        }
+                        if(!external_command_queue.front().agents.empty())
+                            for (auto &agent : external_command_queue.front().agents)
+                            {
+                                std::map<std::string, agent_state>::iterator it = 
+                                    agents_description.find(agent);
+                                
+                                if (it == agents_description.end())
+                                    continue;
+                                
+                                command.uav_id.push_back(it->first);
+                                acc_id += it->first;
+                            }
                             
                         command.goal.x = external_command_queue.front().target[0];
                         command.goal.y = external_command_queue.front().target[1];
@@ -627,7 +630,7 @@ class mission_handler : public rclcpp::Node
                         external_command_queue.pop();
 
                         last_external_command_time = clock.now();
-                    }
+                    }                    
                 }
             }
         }
