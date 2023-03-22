@@ -167,7 +167,7 @@ void cs2::cs2_application::handler_timer_callback()
                 vel_msg.vel.y = vel_target.y();
                 vel_msg.vel.z = vel_target.z();
                 vel_msg.height = agent.previous_target.z();
-                vel_msg.yaw = 0.0;
+                vel_msg.yaw = agent.previous_yaw;
                 auto it = agents_comm.find(key);
                 if (it != agents_comm.end())
                     it->second.vel_world_publisher->publish(vel_msg);
@@ -194,6 +194,9 @@ void cs2::cs2_application::handler_timer_callback()
                 if (pose_difference < reached_threshold)
                 {
                     agent.previous_target = agent.target_queue.front();
+                    Eigen::Vector3d rpy = 
+                        euler_rpy(agent.transform.linear());
+                    agent.previous_yaw = rpy.z();
                     agent.target_queue.pop();
                 }
                 break;
@@ -234,6 +237,9 @@ void cs2::cs2_application::handler_timer_callback()
                 {
                     vel_target = Eigen::Vector3d::Zero();
                     agent.previous_target = agent.target_queue.front();
+                    Eigen::Vector3d rpy = 
+                        euler_rpy(agent.transform.linear());
+                    agent.previous_yaw = rpy.z();
                     agent.target_queue.pop();
                 }
                 else if (pose_difference < max_velocity)
@@ -256,9 +262,27 @@ void cs2::cs2_application::handler_timer_callback()
                 vel_msg.vel.z = vel_target.z();
 
                 // check the difference in heading
-                // Eigen::Vector3d rpy = 
-                //     agent.transform.eulerAngles(2,1,0).reverse();
-                vel_msg.yaw = 0.0;
+                Eigen::Vector3d rpy = 
+                    euler_rpy(agent.transform.linear());
+                
+                double yaw_target;
+                double maximum_yaw_change = 3.0;
+                if (agent.target_yaw - rpy.z() < -180.0)
+                    yaw_target = agent.target_yaw - (rpy.z() - 360.0);
+                else if (agent.target_yaw - rpy.z() > 180.0)
+                    yaw_target = agent.target_yaw - (rpy.z() + 360.0);
+                else
+                    yaw_target = agent.target_yaw - rpy.z();
+
+                double dir = yaw_target / std::abs(yaw_target);
+                yaw_target = std::min(std::abs(yaw_target), maximum_yaw_change);                
+                yaw_target *= dir;
+                yaw_target += rpy.z();
+
+                std::cout << rpy.transpose() << std::endl;
+                // vel_msg.yaw = wrap_pi(yaw_target);
+                vel_msg.yaw = agent.target_yaw;
+                // vel_msg.yaw = 0.0;
                 
                 auto it = agents_comm.find(key);
                 if (it != agents_comm.end())

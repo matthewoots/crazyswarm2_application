@@ -68,6 +68,7 @@ namespace common
         std::queue<Eigen::Vector3d> target_queue;
         double target_yaw;
         Eigen::Vector3d previous_target;
+        double previous_yaw;
         size_t flight_state;
         bool radio_connection;
         bool completed;
@@ -198,6 +199,8 @@ namespace common
     void load_obstacle_map(
         std::map<std::string, rclcpp::ParameterValue> parameter_overrides,
         std::vector<visibility_graph::obstacle> &obstacle_map);
+
+    double wrap_pi(double x);
 }
 
 #endif

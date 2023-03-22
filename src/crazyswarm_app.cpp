@@ -79,6 +79,7 @@ void cs2::cs2_application::user_callback(
 
             iterator_states->second.flight_state = MOVE_VELOCITY;
             iterator_states->second.completed = false;
+            iterator_states->second.target_yaw = copy.yaw;
         }
     }
     // handle takeoff_all and land_all
