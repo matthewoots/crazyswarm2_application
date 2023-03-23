@@ -285,10 +285,13 @@ void cs2::cs2_application::handler_timer_callback()
                     yaw_target = agent.target_yaw - rpy.z() * rad_to_deg;
 
                 // std::cout << yaw_target << std::endl;
-                double dir = yaw_target / std::abs(yaw_target);
-                yaw_target = std::min(std::abs(yaw_target), maximum_yaw_change);                
-                yaw_target *= dir;
-                yaw_target += rpy.z() * rad_to_deg;
+                if (!std::isnan(yaw_target))
+                {
+                    double dir = yaw_target / std::abs(yaw_target);
+                    yaw_target = std::min(std::abs(yaw_target), maximum_yaw_change);                
+                    yaw_target *= dir;
+                    yaw_target += rpy.z() * rad_to_deg;
+                }
 
                 // std::cout << rpy.z() << "/" << wrap_pi(yaw_target) / rad_to_deg << std::endl;
                 vel_msg.yaw = wrap_pi(yaw_target);
