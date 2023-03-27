@@ -79,6 +79,8 @@ class RvizVisualizer : public rclcpp::Node
         Eigen::Affine3d nwu_to_rdf;
         Eigen::Affine3d enu_to_rdf;
 
+        bool concave_obstacles;
+
         std::vector<visibility_graph::obstacle> global_obstacle_list;
 
         void visualizing_timer_callback()
@@ -334,9 +336,12 @@ class RvizVisualizer : public rclcpp::Node
                 1000ms, std::bind(&RvizVisualizer::visualizing_timer_callback, this));
         
             this->declare_parameter("mesh_path", "");
+            this->declare_parameter("concave_obstacles", false);
             
             mesh_path = 
                 this->get_parameter("mesh_path").get_parameter_value().get<std::string>();
+            concave_obstacles = 
+                this->get_parameter("concave_obstacles").get_parameter_value().get<bool>();
 
             // load tags and obstacles from params
             auto node_parameters_iface = this->get_node_parameters_interface();
@@ -344,7 +349,9 @@ class RvizVisualizer : public rclcpp::Node
                 node_parameters_iface->get_parameter_overrides();
 
             load_april_tags(parameter_overrides, april_tags, 0.0, true);
-            load_obstacle_map(parameter_overrides, global_obstacle_list);
+            load_obstacle_map(
+                parameter_overrides, 1.0, global_obstacle_list,
+                concave_obstacles);
 
             agent_state_subscriber = 
                 this->create_subscription<AgentsStateFeedback>("agents",

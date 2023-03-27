@@ -190,15 +190,15 @@ namespace common
 
     std::vector<visibility_graph::obstacle> generate_disjointed_wall(
         std::vector<Eigen::Vector2d> vertices, std::pair<double, double> height_pair,
-        double thickness);
+        double thickness, double factor);
     
     void load_april_tags(
         std::map<std::string, rclcpp::ParameterValue> parameter_overrides,
         std::map<std::string, tag> &april_tag_map, double tag_edge_size, bool is_center_origin);
     
     void load_obstacle_map(
-        std::map<std::string, rclcpp::ParameterValue> parameter_overrides,
-        std::vector<visibility_graph::obstacle> &obstacle_map);
+        std::map<std::string, rclcpp::ParameterValue> parameter_overrides, double factor,
+        std::vector<visibility_graph::obstacle> &obstacle_map, bool concave);
 
     double wrap_pi(double x);
 }

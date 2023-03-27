@@ -84,7 +84,7 @@ void cs2::cs2_application::conduct_planning(
         std::vector<Eigen::Vector3d> debug_point_vertices;
         visibility_graph::get_polygons_on_plane(
             copy, Eigen::Vector3d(0.0, 0.0, 1.0), 
-            rot_polygons, debug_point_vertices);
+            rot_polygons, debug_point_vertices, true);
         
         // threshold is communication_radius
         for (auto &poly : rot_polygons)
@@ -106,16 +106,16 @@ void cs2::cs2_application::conduct_planning(
                         copy.t.inverse() * Eigen::Vector3d(poly.v[i].x(), poly.v[i].y(), 0.0);
                     Eigen::Vector3d vj = 
                         copy.t.inverse() * Eigen::Vector3d(poly.v[j].x(), poly.v[j].y(), 0.0);
-                    size_t div = (size_t)std::ceil((vj - vi).norm() / (protected_zone * 2.0));
+                    size_t div = (size_t)std::ceil((vj - vi).norm() / (protected_zone * 1.5));
                     double separation = (vj - vi).norm() / div;
                     Eigen::Vector3d dir = (vj - vi).normalized();
 
-                    for (size_t j = 0; j < div; j++)
+                    for (size_t j = 1; j < div-1; j++)
                     {
                         Eval_agent static_point;
                         static_point.position_ = (vi + dir * j * separation).cast<float>();
                         static_point.velocity_ = Eigen::Vector3f::Zero();
-                        static_point.radius_ = (float)protected_zone/2;
+                        static_point.radius_ = (float)protected_zone/3;
                         it->second.insertAgentNeighbor(static_point, communication_radius_float);
                         // std::cout << mykey << " obstacle_static " << static_point.position_.transpose() << std::endl;
                     }
@@ -171,6 +171,8 @@ void cs2::cs2_application::handler_timer_callback()
                     vel_target = 
                         (agent.previous_target - agent.transform.translation()).normalized() * max_velocity;
                 
+                conduct_planning(vel_target, key, agent);
+                
                 VelocityWorld vel_msg;
                 vel_msg.header.stamp = clock.now();
                 vel_msg.vel.x = vel_target.x();
@@ -207,8 +209,15 @@ void cs2::cs2_application::handler_timer_callback()
                     Eigen::Vector3d rpy = 
                         euler_rpy(agent.transform.linear());
                     agent.previous_yaw = rpy.z();
+                    
+                    agent_update_mutex.lock();
                     agent.target_queue.pop();
+                    agent_update_mutex.unlock();
                 }
+                
+                if (is_land)
+                    agent.completed = true;
+
                 break;
             }
             case MOVE_VELOCITY: case INTERNAL_TRACKING:
@@ -250,7 +259,11 @@ void cs2::cs2_application::handler_timer_callback()
                     Eigen::Vector3d rpy = 
                         euler_rpy(agent.transform.linear());
                     agent.previous_yaw = rpy.z();
+
+                    agent_update_mutex.lock();
                     agent.target_queue.pop();
+                    agent_update_mutex.unlock();
+
                     break;
                 }
                 else if (pose_difference < max_velocity)
@@ -260,8 +273,9 @@ void cs2::cs2_application::handler_timer_callback()
                 {
                     vel_target = 
                         (agent.target_queue.front() - agent.transform.translation()).normalized() * max_velocity;
-                    conduct_planning(vel_target, key, agent);
                 }
+
+                conduct_planning(vel_target, key, agent);
 
                 double duration_seconds = (clock.now() - start).seconds();
                 RCLCPP_INFO(this->get_logger(), "go_to_velocity %s (%.3lf %.3lf %.3lf) time (%.3lfms)", 

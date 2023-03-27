@@ -117,6 +117,8 @@ namespace cs2
 
                 // declare global commands
                 this->declare_parameter("queue_size", 1);
+                this->declare_parameter("obstacle_expansion_factor", 1.0);
+                this->declare_parameter("concave_obstacles", false);
 
                 this->declare_parameter("trajectory_parameters.max_velocity", -1.0);
                 this->declare_parameter("trajectory_parameters.maximum_yaw_change", -1.0);
@@ -140,6 +142,8 @@ namespace cs2
                 max_queue_size = 
                     this->get_parameter("queue_size").get_parameter_value().get<int>();
 
+                concave_obstacles = 
+                    this->get_parameter("concave_obstacles").get_parameter_value().get<bool>();
                 max_velocity = 
                     this->get_parameter("trajectory_parameters.max_velocity").get_parameter_value().get<double>();
                 maximum_yaw_change = 
@@ -162,6 +166,8 @@ namespace cs2
                     this->get_parameter("trajectory_parameters.height_range").get_parameter_value().get<std::vector<double>>();
                 assert(height_range_vector.size() == 2);
 
+                obstacle_expansion_factor = 
+                    this->get_parameter("obstacle_expansion_factor").get_parameter_value().get<double>();
                 std::vector<double> camera_rotation = 
                     this->get_parameter("april_tag_parameters.camera_rotation").get_parameter_value().get<std::vector<double>>();
                 time_threshold = 
@@ -341,7 +347,9 @@ namespace cs2
                 }
 
                 std::vector<visibility_graph::obstacle> global_obstacle_list;
-                load_obstacle_map(parameter_overrides, global_obstacle_list);
+                load_obstacle_map(
+                    parameter_overrides, obstacle_expansion_factor, 
+                    global_obstacle_list, concave_obstacles);
                 global_obstacle_map.obs = global_obstacle_list;
                 global_obstacle_map.inflation = protected_zone;
 
@@ -384,6 +392,7 @@ namespace cs2
             int max_queue_size;
 
             bool center_origin;
+            bool concave_obstacles;
 
             double max_velocity;
             double maximum_yaw_change;
@@ -398,6 +407,7 @@ namespace cs2
             double time_threshold;
             double observation_threshold;
             double tag_edge_size;
+            double obstacle_expansion_factor;
 
             int observation_limit;
 

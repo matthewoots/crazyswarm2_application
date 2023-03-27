@@ -37,7 +37,8 @@ def generate_launch_description():
     with open(environment_yaml, 'r') as ymlfile:
         environment = yaml.safe_load(ymlfile)
 
-    config = [environment] + [{'mesh_path': april_tag_path}] 
+    # config = [environment] + [{'mesh_path': april_tag_path}]
+    config = [environment] + [{'mesh_path': april_tag_path}] + [config]
 
     ld = LaunchDescription()
 

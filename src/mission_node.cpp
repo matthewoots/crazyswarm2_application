@@ -29,8 +29,7 @@
 #include "crazyswarm_application/msg/user_command.hpp"
 #include "crazyswarm_application/msg/agents_state_feedback.hpp"
 #include "crazyswarm_application/msg/agent_state.hpp"
-
-#include "std_srvs/srv/empty.hpp"
+#include "crazyswarm_application/srv/agents.hpp"
 
 #include <rclcpp/rclcpp.hpp>
 #include "common.h"
@@ -38,7 +37,7 @@
 using crazyswarm_application::msg::UserCommand;
 using crazyswarm_application::msg::AgentsStateFeedback;
 using crazyswarm_application::msg::AgentState;
-using std_srvs::srv::Empty;
+using crazyswarm_application::srv::Agents;
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -60,6 +59,7 @@ class mission_handler : public rclcpp::Node
             std::vector<std::string> agents; 
             Eigen::Vector4d target;
             double duration; // s
+            std::string options;
             bool sent_mission;
         };
 
@@ -86,7 +86,7 @@ class mission_handler : public rclcpp::Node
 
         std::queue<commander> external_command_queue;
 
-        rclcpp::Client<Empty>::SharedPtr send_external;
+        rclcpp::Client<Agents>::SharedPtr send_external;
 
     public:
 
@@ -164,6 +164,10 @@ class mission_handler : public rclcpp::Node
                         cmd.target[1] = std::stod(targets[1]);
                         cmd.target[2] = std::stod(targets[2]);
                         cmd.target[3] = std::stod(targets[3]);
+
+                        if (!command_vector[i+3].empty())
+                            cmd.options = command_vector[i+3];
+
                     }
                 }
                 else
@@ -185,7 +189,7 @@ class mission_handler : public rclcpp::Node
                 this->create_subscription<AgentsStateFeedback>("agents", 
                 2, std::bind(&mission_handler::agent_event_callback, this, _1));
 
-            send_external = this->create_client<Empty>("/external/receive");
+            send_external = this->create_client<Agents>("/external/receive");
 
             // load crazyflies from params
             auto node_parameters_iface = this->get_node_parameters_interface();
@@ -295,22 +299,46 @@ class mission_handler : public rclcpp::Node
                             return;
                         }
                     }
-                    else
+                    else if (strcmp(cmd->task.c_str(), dict.external.c_str()) == 0)
                     {
-                        if (strcmp(cmd->task.c_str(), dict.external.c_str()) == 0)
+                        if ((clock.now() - last_external_command_time).seconds() > 
+                            external_msg_threshold)
+                            success_count++;
+                        else
+                            RCLCPP_INFO(this->get_logger(), "external time %lf/%lf", 
+                                (clock.now() - last_external_command_time).seconds(), 
+                                external_msg_threshold);
+                        continue;
+
+                        if (check_completed_agents(cmd))
+                            success_count++;
+                    }
+                    else if (strcmp(cmd->task.c_str(), dict.go_to_velocity.c_str()) == 0)
+                    {
+                        if (strcmp(cmd->options.c_str(), dict.land.c_str()) == 0)
                         {
-                            if ((clock.now() - last_external_command_time).seconds() > 
-                                external_msg_threshold)
-                                success_count++;
-                            else
-                                RCLCPP_INFO(this->get_logger(), "external time %lf/%lf", 
-                                    (clock.now() - last_external_command_time).seconds(), 
-                                    external_msg_threshold);
-                            continue;
+                            for (auto agent : cmd->agents)
+                            {
+                                std::map<std::string, agent_state>::iterator it = 
+                                    agents_description.find(agent);
+                                if (it == agents_description.end())
+                                    continue;
+                                if (it->second.completed)
+                                {
+                                    UserCommand command;
+                                    command.cmd = "land";
+                                    command.uav_id.push_back(it->first);
+                                    command_publisher->publish(command);
+                                    agents_description.erase(it); 
+                                }
+                            }
                         }
                         if (check_completed_agents(cmd))
                             success_count++;
                     }
+                    else
+                        if (check_completed_agents(cmd))
+                            success_count++;
                 }
 
                 RCLCPP_INFO(this->get_logger(), "success %ld/%ld", 
@@ -337,7 +365,9 @@ class mission_handler : public rclcpp::Node
                         if (strcmp(command_sequence.front().task.c_str(), dict.external.c_str()) == 0)
                         {
                             last_external_command_time = clock.now();
-                            auto request = std::make_shared<Empty::Request>();
+                            auto request = std::make_shared<Agents::Request>();
+                            for (auto agent : command_sequence.front().agents)
+                                request->names.emplace_back(agent);
                             auto result = 
                                 send_external->async_send_request(request);
                         }

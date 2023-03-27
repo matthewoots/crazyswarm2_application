@@ -35,6 +35,7 @@ set(msg_files
   "msg/NamedPose.msg"
   "msg/NamedPoseArray.msg"
   "msg/AgentsStateFeedback.msg"
+  "srv/Agents.srv"
   )
 
 rosidl_generate_interfaces(${PROJECT_NAME}

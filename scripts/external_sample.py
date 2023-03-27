@@ -2,40 +2,57 @@ import rclpy
 from rclpy.node import Node
 import sys
 import random
+from functools import partial
 
 from crazyswarm_application.msg import UserCommand
 from geometry_msgs.msg import Point
-from std_srvs.srv import Empty
+from geometry_msgs.msg import PoseStamped
+from crazyswarm_application.srv import Agents
 
 class ExternalPublisher(Node):
 
-    def __init__(self, agent_list):
+    def __init__(self):
         super().__init__('external_publisher')
         self.publisher_ = self.create_publisher(UserCommand, '/user/external', 10)
         self.timer_period = 3.0  # seconds
-        self.create_service(Empty, "/external/receive", self.external_callback)
-        self.i = 0
-        self.max = 5.0
+        self.create_service(Agents, "/external/receive", self.external_callback)
+        self.subscriber = []
+        self.max = 2.0
         self.height = 1.0
-        self.agents = agent_list
+        self.agents = {}
     
     def external_callback(self, request, response):
-        self.get_logger().info("start timer")
+        self.get_logger().info("[external] set subscribers")
+        for name in request.names:
+            self.agents.update({name: PoseStamped()})
+            print('creating: ', name)
+            self.subscriber.append(
+                self.create_subscription(
+                PoseStamped, 
+                name + "/pose",
+                partial(self.listener_callback, agent_id=name), 
+                10))
+        self.get_logger().info("[external] start timer")
         self.timer = self.create_timer(self.timer_period, self.timer_callback)
         return response
+    
+    def listener_callback(self, msg, agent_id):
+        self.agents[agent_id] = msg
+        return
     
     def random_generator(self):
         return ((random.random()*2) - 1) * self.max
 
     def timer_callback(self):
-        idx = random.randint(0, len(self.agents)-1)
+        key, value = random.choice(list(self.agents.items()))
         # string cmd
         # string[] uav_id
         # geometry_msgs/Point goal
         # float32 yaw
-        msg = self.agents.get(idx)
-        msg.goal.x = self.random_generator()
-        msg.goal.y = self.random_generator()
+        msg = UserCommand()
+        msg.uav_id.append(key)
+        msg.goal.x = value.pose.position.x + self.random_generator()
+        msg.goal.y = value.pose.position.y + self.random_generator()
         msg.goal.z = self.height
 
         print(msg.uav_id, msg.goal.x, msg.goal.y, msg.goal.z)
@@ -43,21 +60,13 @@ class ExternalPublisher(Node):
 
 
 def main():
-    
-    if (len(sys.argv) == 1):
-        print('invalid number of arguments', len(sys.argv))
+    if (len(sys.argv) > 1):
+        print('too number of arguments', len(sys.argv))
         exit()
-    agent_list = {}
-    count = 0
-    for arg in sys.argv[1:]:
-        cmd = UserCommand()
-        cmd.uav_id.append("cf" + str(arg))
-        agent_list[count] = cmd
-        print('... append: ', "cf" + str(arg))
-        count += 1
+        
     rclpy.init(args=None)
 
-    external_publisher = ExternalPublisher(agent_list)
+    external_publisher = ExternalPublisher()
 
     rclpy.spin(external_publisher)
 

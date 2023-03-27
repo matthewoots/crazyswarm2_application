@@ -153,11 +153,12 @@ std::vector<std::string> common::split_space_delimiter(
 std::vector<visibility_graph::obstacle> common::generate_disjointed_wall(
     std::vector<Eigen::Vector2d> vertices, 
     std::pair<double, double> height_pair,
-    double thickness)
+    double thickness, double factor)
 {
     std::vector<visibility_graph::obstacle> obs_vector;
 
     double half_thickness = thickness / 2.0;
+    double half_original_thickness = (thickness/factor) / 2.0;
 
     if (vertices.size() < 2)
         return obs_vector;
@@ -170,9 +171,11 @@ std::vector<visibility_graph::obstacle> common::generate_disjointed_wall(
         Eigen::Vector2d(-direction.y(), direction.x());
     
     base_vertices.emplace_back(
-        vertices[0] + perpendicular_direction * half_thickness);
+        vertices[0] + perpendicular_direction * half_thickness 
+        - direction * half_original_thickness * ((factor > 1.0) ? 1.0 : 0.0));
     base_vertices.emplace_back(
-        vertices[0] - perpendicular_direction * half_thickness);
+        vertices[0] - perpendicular_direction * half_thickness
+        - direction * half_original_thickness * ((factor > 1.0) ? 1.0 : 0.0));
     
     Eigen::Vector3d north = Eigen::Vector3d(1.0, 0.0, 0.0);
 
@@ -215,9 +218,11 @@ std::vector<visibility_graph::obstacle> common::generate_disjointed_wall(
         Eigen::Vector2d(-direction.y(), direction.x());
     
     base_vertices.emplace_back(
-        vertices[vertices.size()-1] + perpendicular_direction * half_thickness);
+        vertices[vertices.size()-1] + perpendicular_direction * half_thickness
+        + direction * half_original_thickness * ((factor > 1.0) ? 1.0 : 0.0));
     base_vertices.emplace_back(
-        vertices[vertices.size()-1] - perpendicular_direction * half_thickness);
+        vertices[vertices.size()-1] - perpendicular_direction * half_thickness
+        + direction * half_original_thickness * ((factor > 1.0) ? 1.0 : 0.0));
 
     for (size_t i = 0; i < base_vertices.size()/2 - 1; i++)
     {
@@ -236,7 +241,7 @@ std::vector<visibility_graph::obstacle> common::generate_disjointed_wall(
 
         centroid /= 4.0;
 
-        visibility_graph::graham_scan(unorganized_verts, centroid, "ccw", organized_verts);
+        visibility_graph::graham_scan(unorganized_verts, centroid, "cw", organized_verts);
 
         obs.v = organized_verts;
         obs.h = height_pair;
@@ -327,8 +332,8 @@ std::vector<visibility_graph::obstacle> common::generate_disjointed_wall(
 }
 
 void common::load_obstacle_map(
-    std::map<std::string, rclcpp::ParameterValue> parameter_overrides,
-    std::vector<visibility_graph::obstacle> &obstacle_map)
+    std::map<std::string, rclcpp::ParameterValue> parameter_overrides, double factor,
+    std::vector<visibility_graph::obstacle> &obstacle_map, bool concave)
 {
     auto obstacles = extract_names(parameter_overrides, "environment.obstacles");
     for (const auto &obs : obstacles) 
@@ -360,57 +365,62 @@ void common::load_obstacle_map(
 
         std::vector<visibility_graph::obstacle> obstacle_list =
             generate_disjointed_wall(vertices, 
-            std::make_pair(height_list[0], height_list[1]), thickness);
+            std::make_pair(height_list[0], height_list[1]), thickness * factor, factor);
         
-        for (auto &obs : obstacle_list)
-            obstacle_map.emplace_back(obs);
-        
-        // double eps = 0.0001;
-        // std::vector<Eigen::Vector2d> vert_list = obstacle_list.front().v;
-        // // connect the disjointed wall obstacle
-        // for (size_t x = 1; x < obstacle_list.size(); x++)
-        // {
-        //     bool found = false;
-        //     size_t yi, yj, xi, xj;
-            
-        //     // iterate through the vertices list (the accumulated list)
-        //     for (yi = 0; yi < vert_list.size(); yi++)
-        //     {
-        //         yj = (yi + 1) % (vert_list.size());
-        //         // iterate through the obstacle vertices
-        //         for (xi = 0; xi < obstacle_list[x].v.size(); xi++)
-        //         {
-        //             xj = (xi + 1) % (obstacle_list[x].v.size());
+        if (!concave)
+        {
+            for (auto &obs : obstacle_list)
+                obstacle_map.emplace_back(obs);
+        }
+        else
+        {
+            double eps = 0.0001;
+            std::vector<Eigen::Vector2d> vert_list = obstacle_list.front().v;
+            // connect the disjointed wall obstacle
+            for (size_t x = 1; x < obstacle_list.size(); x++)
+            {
+                bool found = false;
+                size_t yi, yj, xi, xj;
+                
+                // iterate through the vertices list (the accumulated list)
+                for (yi = 0; yi < vert_list.size(); yi++)
+                {
+                    yj = (yi + 1) % (vert_list.size());
+                    // iterate through the obstacle vertices
+                    for (xi = 0; xi < obstacle_list[x].v.size(); xi++)
+                    {
+                        xj = (xi + 1) % (obstacle_list[x].v.size());
 
-        //             // std::cout << "yij(" << yi << " " << yj << ") " << 
-        //             //     "xij(" << xi << " " << xj << ") " << 
-        //             //     (obstacle_list[x].v[xi] - vert_list[yj]).norm() <<
-        //             //     " " << (obstacle_list[x].v[xj] - vert_list[yi]).norm() << std::endl;
-        //             if ((obstacle_list[x].v[xi] - vert_list[yj]).norm() < eps
-        //                 && (obstacle_list[x].v[xj] - vert_list[yi]).norm() < eps)
-        //             {
-        //                 found = true;
-        //                 break;
-        //             }
-        //         }
+                        // std::cout << "yij(" << yi << " " << yj << ") " << 
+                        //     "xij(" << xi << " " << xj << ") " << 
+                        //     (obstacle_list[x].v[xi] - vert_list[yj]).norm() <<
+                        //     " " << (obstacle_list[x].v[xj] - vert_list[yi]).norm() << std::endl;
+                        if ((obstacle_list[x].v[xi] - vert_list[yj]).norm() < eps
+                            && (obstacle_list[x].v[xj] - vert_list[yi]).norm() < eps)
+                        {
+                            found = true;
+                            break;
+                        }
+                    }
 
-        //         if (found)
-        //         {
-        //             // after yi push in xj -> xi
-        //             for (size_t zi = 0; zi < obstacle_list[x].v.size() - 2; zi++)
-        //             {
-        //                 size_t v = (xj + zi + 1) % (obstacle_list[x].v.size());
-        //                 auto iter_position = vert_list.begin() + yi + zi + 1;
-        //                 vert_list.insert(iter_position, obstacle_list[x].v[v]);
-        //             }
-        //             break;
-        //         }
-        //     }
-        // }
-        // visibility_graph::obstacle joint_obstacle;
-        // joint_obstacle.v = vert_list;
-        // joint_obstacle.h = std::make_pair(height_list[0], height_list[1]);
-        // obstacle_map.emplace_back(joint_obstacle);
+                    if (found)
+                    {
+                        // after yi push in xj -> xi
+                        for (size_t zi = 0; zi < obstacle_list[x].v.size() - 2; zi++)
+                        {
+                            size_t v = (xj + zi + 1) % (obstacle_list[x].v.size());
+                            auto iter_position = vert_list.begin() + yi + zi + 1;
+                            vert_list.insert(iter_position, obstacle_list[x].v[v]);
+                        }
+                        break;
+                    }
+                }
+            }
+            visibility_graph::obstacle joint_obstacle;
+            joint_obstacle.v = vert_list;
+            joint_obstacle.h = std::make_pair(height_list[0], height_list[1]);
+            obstacle_map.emplace_back(joint_obstacle);
+        }
     }
 }
 

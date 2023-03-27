@@ -51,13 +51,16 @@ void cs2::cs2_application::user_callback(
             if (iterator_states == agents_states.end())
                 continue;
 
+            agent_update_mutex.lock();
             // check if the command is external, if so, keep changing the goal
             if (copy.is_external)
-                 while (!iterator_states->second.target_queue.empty())
+            {
+                while (!iterator_states->second.target_queue.empty())
                     iterator_states->second.target_queue.pop();
+            }
 
-            // only do visibility when obs are empty
-            if (!global_obstacle_map.obs.empty())
+            // only do visibility when obs are not empty
+            if (!global_obstacle_map.obs.empty() && !copy.is_external)
             {
                 global_obstacle_map.start_end.first = 
                     iterator_states->second.transform.translation();
@@ -66,8 +69,11 @@ void cs2::cs2_application::user_callback(
                 std::string frame = "nwu";
                 visibility_graph::visibility vg(global_obstacle_map, frame, 1);
 
-                // vg.calculate_path(true);
-                vg.calculate_path(false);
+                RCLCPP_INFO(this->get_logger(), "conducting visibility");
+                if (concave_obstacles)
+                    vg.calculate_path(true);
+                else
+                    vg.calculate_path(false);
 
                 std::vector<Eigen::Vector3d> visibility_path = vg.get_path();
                 if (!visibility_path.empty())
@@ -86,6 +92,8 @@ void cs2::cs2_application::user_callback(
             iterator_states->second.flight_state = MOVE_VELOCITY;
             iterator_states->second.completed = false;
             iterator_states->second.target_yaw = copy.yaw;
+            
+            agent_update_mutex.unlock();
         }
     }
     // handle takeoff_all and land_all
@@ -121,6 +129,7 @@ void cs2::cs2_application::user_callback(
             {
                 Eigen::Vector3d trans = agent.transform.translation();
                 
+                agent_update_mutex.lock();
                 while (!agent.target_queue.empty())
                     agent.target_queue.pop();
 
@@ -129,6 +138,7 @@ void cs2::cs2_application::user_callback(
                 );
                 agent.flight_state = is_takeoff_all ? TAKEOFF : LAND;
                 agent.completed = false;
+                agent_update_mutex.unlock();
             }
         }
         else
@@ -154,6 +164,7 @@ void cs2::cs2_application::user_callback(
             {
                 Eigen::Vector3d trans = agent.transform.translation();
                 
+                agent_update_mutex.lock();
                 while (!agent.target_queue.empty())
                     agent.target_queue.pop();
 
@@ -162,6 +173,7 @@ void cs2::cs2_application::user_callback(
                 );
                 agent.flight_state = is_takeoff_all ? TAKEOFF : LAND;
                 agent.completed = false;
+                agent_update_mutex.unlock();
             }
         }
 
@@ -220,6 +232,7 @@ void cs2::cs2_application::user_callback(
                     iterator->second.go_to->async_send_request(request);
                 check_queue.push(i);
 
+                agent_update_mutex.lock();
                 while (!iterator_states->second.target_queue.empty())
                     iterator_states->second.target_queue.pop();
 
@@ -228,6 +241,7 @@ void cs2::cs2_application::user_callback(
 
                 RCLCPP_INFO(this->get_logger(), "go_to sent for %s (%lfms)", 
                     iterator->first.c_str(), (clock.now() - start).seconds()*1000.0);
+                agent_update_mutex.unlock();
             }
         }
 
@@ -261,12 +275,13 @@ void cs2::cs2_application::pose_callback(
     const PoseStamped::SharedPtr msg, 
     std::map<std::string, agent_state>::iterator state)
 {
-    agent_update_mutex.lock();
-
     PoseStamped copy = *msg;
     // auto pos = state->second.transform.translation();
     // RCLCPP_INFO(this->get_logger(), "(%s) %lf %lf %lf", state->first.c_str(), 
     //     pos[0], pos[1], pos[2]);
+
+    agent_update_mutex.lock();
+
     state->second.transform.translation() = 
         Eigen::Vector3d(copy.pose.position.x, copy.pose.position.y, copy.pose.position.z);
     Eigen::Quaterniond q = Eigen::Quaterniond(
@@ -309,7 +324,6 @@ void cs2::cs2_application::pose_callback(
                 state->second.completed = false;
             }
         }
-    
 
     agent_update_mutex.unlock();
 }
