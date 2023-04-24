@@ -65,6 +65,7 @@ class mission_handler : public rclcpp::Node
 
         double external_msg_threshold;
         double protected_zone;
+        double move_land_tolerance;
 
         string_dictionary dict;
         
@@ -73,8 +74,8 @@ class mission_handler : public rclcpp::Node
         std::vector<commander> command_buffer;
 
         rclcpp::Time last_mission_time;
-
         rclcpp::Time last_external_command_time;
+        rclcpp::Time goto_velocity_command_time;
 
         rclcpp::Publisher<UserCommand>::SharedPtr command_publisher;
 
@@ -109,11 +110,14 @@ class mission_handler : public rclcpp::Node
                 this->get_parameter("command_sequence").get_parameter_value().get<std::vector<std::string>>();
             
             this->declare_parameter("external_timeout", -1.0);
+            this->declare_parameter("move_land_tolerance", -1.0);
             this->declare_parameter("trajectory_parameters.protected_zone", -1.0);
             external_msg_threshold = 
                 this->get_parameter("external_timeout").get_parameter_value().get<double>();
             protected_zone =
                 this->get_parameter("trajectory_parameters.protected_zone").get_parameter_value().get<double>();
+            move_land_tolerance =
+                this->get_parameter("move_land_tolerance").get_parameter_value().get<double>();
 
             // number of segments per command
             int command_segments = 5;
@@ -184,13 +188,13 @@ class mission_handler : public rclcpp::Node
             }
 
             command_publisher = 
-                this->create_publisher<UserCommand>("user", 20);
+                this->create_publisher<UserCommand>("user", 25);
             agent_state_subscription = 
                 this->create_subscription<AgentsStateFeedback>("agents", 
-                2, std::bind(&mission_handler::agent_event_callback, this, _1));
+                15, std::bind(&mission_handler::agent_event_callback, this, _1));
 
             send_external = this->create_client<Agents>("/external/receive");
-
+            
             // load crazyflies from params
             auto node_parameters_iface = this->get_node_parameters_interface();
             const std::map<std::string, rclcpp::ParameterValue> &parameter_overrides =
@@ -199,7 +203,7 @@ class mission_handler : public rclcpp::Node
 
             external_command_subscription = 
                 this->create_subscription<UserCommand>("/user/external", 
-                10, std::bind(&mission_handler::external_command_callback, this, _1));
+                15, std::bind(&mission_handler::external_command_callback, this, _1));
 
             for (const auto &name : cf_names) 
             {
@@ -262,18 +266,31 @@ class mission_handler : public rclcpp::Node
             // check through the agent's states
             // (1) Check for radio
             // (2) Check whether task is completed
-            size_t all_connected = 0;
+            // size_t all_connected = 0;
+
+            std::vector<std::string> agent_remove_list;
+            // check for connection and print state
             for (auto &agent : agents_description)
             {
-                if (agent.second.radio_connection)
-                    all_connected++;
+                // if (agent.second.radio_connection)
+                //     all_connected++;
+                if (!agent.second.radio_connection)
+                    agent_remove_list.emplace_back(agent.first);
+
                 call_state_printer(agent);
             }
             std::cout << std::endl;
 
             // if all are not connected do not continue the task
-            if (all_connected != agents_description.size())
-                return;
+            // if (all_connected != agents_description.size())
+            //     return;
+            if (!agent_remove_list.empty())
+                for (auto name : agent_remove_list)
+                {
+                    std::map<std::string, agent_state>::iterator 
+                        iter = agents_description.find(name);
+                    agents_description.erase(iter);
+                }
 
             // command handler
             if (!command_buffer.empty())
@@ -315,26 +332,35 @@ class mission_handler : public rclcpp::Node
                     }
                     else if (strcmp(cmd->task.c_str(), dict.go_to_velocity.c_str()) == 0)
                     {
-                        if (strcmp(cmd->options.c_str(), dict.land.c_str()) == 0)
+                        // this may not be the best way since it is a race condition
+                        // the userfeedback will run and those that have not calculated their path
+                        // will be forced to land
+                        // enforce a buffer time
+                        double duration_seconds = (clock.now() - goto_velocity_command_time).seconds();
+                        if (duration_seconds > move_land_tolerance)
                         {
-                            for (auto agent : cmd->agents)
+                            if (strcmp(cmd->options.c_str(), dict.land.c_str()) == 0)
                             {
-                                std::map<std::string, agent_state>::iterator it = 
-                                    agents_description.find(agent);
-                                if (it == agents_description.end())
-                                    continue;
-                                if (it->second.completed)
+                                for (auto agent : cmd->agents)
                                 {
-                                    UserCommand command;
-                                    command.cmd = "land";
-                                    command.uav_id.push_back(it->first);
-                                    command_publisher->publish(command);
-                                    agents_description.erase(it); 
+                                    std::map<std::string, agent_state>::iterator it = 
+                                        agents_description.find(agent);
+                                    if (it == agents_description.end())
+                                        continue;
+                                    if (it->second.completed)
+                                    {
+                                        UserCommand command;
+                                        command.cmd = "land";
+                                        command.uav_id.push_back(it->first);
+                                        command_publisher->publish(command);
+                                        agents_description.erase(it); 
+                                    }
                                 }
                             }
+                            if (check_completed_agents(cmd))
+                                success_count++;
                         }
-                        if (check_completed_agents(cmd))
-                            success_count++;
+                        
                     }
                     else
                         if (check_completed_agents(cmd))
@@ -367,9 +393,17 @@ class mission_handler : public rclcpp::Node
                             last_external_command_time = clock.now();
                             auto request = std::make_shared<Agents::Request>();
                             for (auto agent : command_sequence.front().agents)
+                            {
+                                std::map<std::string, agent_state>::iterator it = 
+                                    agents_description.find(agent);
+                                if (it == agents_description.end())
+                                    continue;
                                 request->names.emplace_back(agent);
+                            }
                             auto result = 
                                 send_external->async_send_request(request);
+                            RCLCPP_INFO(this->get_logger(), "SENT EXTERNAL REQUEST");
+
                         }
                         command_sequence.pop();
                     }
@@ -454,12 +488,25 @@ class mission_handler : public rclcpp::Node
                     if (strcmp(cmd->agents[0].c_str(), dict.all.c_str()) == 0)
                     { 
                         size_t size_agents = agents_description.size();
-                        size_t division = 1, count = 0;
+                        size_t division = 1;
                         while (size_agents > std::pow(division,2))
                             division++;
 
+                        int vector_size = division * division;
                         double offset_from_center = 
                             (2*protected_zone) * double(division) / 2.0;
+
+                        std::vector<Eigen::Vector3d> pos_array;
+                        for (int i = 0; i < vector_size; i++)
+                        {
+                            Eigen::Vector3d pos = Eigen::Vector3d::Zero();
+                            pos.x() = cmd->target[0] - 
+                                offset_from_center + (double)(i / division) * 2*protected_zone;
+                            pos.y() = cmd->target[1] - 
+                                offset_from_center + (double)(i % division) * 2*protected_zone;
+                            pos.z() = cmd->target[2];
+                            pos_array.emplace_back(pos);
+                        }
                         
                         for (auto &[key, state] : agents_description)
                         {
@@ -473,28 +520,52 @@ class mission_handler : public rclcpp::Node
                             // command.goal.y = cmd->target[1];
                             // command.goal.z = cmd->target[2];
 
-                            command.goal.x = cmd->target[0] - 
-                                offset_from_center + (double)(count / division) * 2*protected_zone;
-                            command.goal.y = cmd->target[1] - 
-                                offset_from_center + (double)(count % division) * 2*protected_zone;
-                            command.goal.z = cmd->target[2];
+                            double dist = FLT_MAX;
+                            size_t idx = 100;
+                            for (size_t i = 0; i < pos_array.size(); i++)
+                            {
+                                double diff = (pos_array[i] - state.transform.translation()).norm();
+                                if (diff < dist)
+                                {
+                                    idx = i;
+                                    dist = diff;
+                                }
+                            }
+
+                            command.goal.x = pos_array[idx].x();
+                            command.goal.y = pos_array[idx].y();
+                            command.goal.z = pos_array[idx].z();
 
                             command.yaw = cmd->target[3];
                             
                             command_publisher->publish(command);
-                            count++;
+
+                            pos_array.erase(pos_array.begin()+idx);
                         }
                     }
                     // "individual"
                     else
                     {
                         size_t size_agents = cmd->agents.size();
-                        size_t division = 1, count = 0;
+                        size_t division = 1;
                         while (size_agents > std::pow(division,2))
                             division++;
 
+                        int vector_size = division * division;
                         double offset_from_center = 
                             (2*protected_zone) * double(division) / 2.0;
+
+                        std::vector<Eigen::Vector3d> pos_array;
+                        for (int i = 0; i < vector_size; i++)
+                        {
+                            Eigen::Vector3d pos = Eigen::Vector3d::Zero();
+                            pos.x() = cmd->target[0] - 
+                                offset_from_center + (double)(i / division) * 2*protected_zone;
+                            pos.y() = cmd->target[1] - 
+                                offset_from_center + (double)(i % division) * 2*protected_zone;
+                            pos.z() = cmd->target[2];
+                            pos_array.emplace_back(pos);
+                        }
 
                         for (auto &agent : cmd->agents)
                         {
@@ -513,16 +584,27 @@ class mission_handler : public rclcpp::Node
                             // command.goal.y = cmd->target[1];
                             // command.goal.z = cmd->target[2];
 
-                            command.goal.x = cmd->target[0] - 
-                                offset_from_center + (double)(count / division) * 2*protected_zone;
-                            command.goal.y = cmd->target[1] - 
-                                offset_from_center + (double)(count % division) * 2*protected_zone;
-                            command.goal.z = cmd->target[2];
+                            double dist = FLT_MAX;
+                            size_t idx = 100;
+                            for (size_t i = 0; i < pos_array.size(); i++)
+                            {
+                                double diff = (pos_array[i] - it->second.transform.translation()).norm();
+                                if (diff < dist)
+                                {
+                                    idx = i;
+                                    dist = diff;
+                                }
+                            }
+
+                            command.goal.x = pos_array[idx].x();
+                            command.goal.y = pos_array[idx].y();
+                            command.goal.z = pos_array[idx].z();
 
                             command.yaw = cmd->target[3];
                             
                             command_publisher->publish(command);
-                            count++;
+                            
+                            pos_array.erase(pos_array.begin()+idx);
                         }
                     }
                     
@@ -530,6 +612,8 @@ class mission_handler : public rclcpp::Node
                     
                     RCLCPP_INFO(this->get_logger(), "Sent %s goto_velocity", 
                         acc_id.c_str());                    
+                    
+                    goto_velocity_command_time = clock.now();
                 }
 
                 // "goto"

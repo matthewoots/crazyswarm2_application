@@ -65,6 +65,8 @@ class RvizVisualizer : public rclcpp::Node
         rclcpp::Publisher<MarkerArray>::SharedPtr tag_publisher;
         rclcpp::Publisher<OverlayText>::SharedPtr text_publisher;
         rclcpp::Publisher<Marker>::SharedPtr obstacle_publisher;
+        rclcpp::Publisher<Marker>::SharedPtr orca_obstacle_publisher;
+        rclcpp::Publisher<Marker>::SharedPtr visibility_obstacle_publisher;
 
         rclcpp::Subscription<AgentsStateFeedback>::SharedPtr agent_state_subscriber;
 
@@ -82,12 +84,22 @@ class RvizVisualizer : public rclcpp::Node
         bool concave_obstacles;
 
         std::vector<visibility_graph::obstacle> global_obstacle_list;
+        std::vector<visibility_graph::obstacle> visibility_obstacle_list;
+        std::vector<visibility_graph::obstacle> orca_obstacle_list;
+
+        visualization_msgs::msg::Marker global_obs_visualize;
+        visualization_msgs::msg::Marker visibility_obs_visualize;
+        visualization_msgs::msg::Marker orca_obs_visualize;
+
+        double visibility_expansion_factor;
+        double orca_static_expansion_factor;
 
         void visualizing_timer_callback()
         {
+            obstacle_publisher->publish(global_obs_visualize);
+            orca_obstacle_publisher->publish(orca_obs_visualize);
+            visibility_obstacle_publisher->publish(visibility_obs_visualize);
             show_global_tag();
-            show_obstacles();
-            
         }
 
         void agents_state_callback(
@@ -240,13 +252,15 @@ class RvizVisualizer : public rclcpp::Node
             tag_publisher->publish(tag_array);
         }
 
-        void show_obstacles()
+        void obstacles_to_vertices_vector(
+            std::vector<visibility_graph::obstacle> &obs_list,
+            visualization_msgs::msg::Marker &msg,
+            Eigen::Vector3d rgb, int id)
         {
-            visualization_msgs::msg::Marker obs_visualize;
             std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> vect_vert;
 
             // vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> format
-            for (visibility_graph::obstacle &obs : global_obstacle_list)
+            for (visibility_graph::obstacle &obs : obs_list)
             {
                 // Get the centroid 
                 Eigen::Vector2d centroid;
@@ -286,21 +300,21 @@ class RvizVisualizer : public rclcpp::Node
 
             }
 
-            obs_visualize.header.frame_id = "/world";
-            obs_visualize.header.stamp = clock.now();
-            obs_visualize.type = visualization_msgs::msg::Marker::LINE_LIST;
-            obs_visualize.action = visualization_msgs::msg::Marker::ADD;
+            msg.header.frame_id = "/world";
+            msg.header.stamp = clock.now();
+            msg.type = visualization_msgs::msg::Marker::LINE_LIST;
+            msg.action = visualization_msgs::msg::Marker::ADD;
 
-            obs_visualize.id = 2;
+            msg.id = id;
 
-            obs_visualize.color.r = 1.0;
-            obs_visualize.color.g = 1.0;
-            obs_visualize.color.b = 1.0;
+            msg.color.r = rgb.x();
+            msg.color.g = rgb.y();
+            msg.color.b = rgb.z();
 
-            obs_visualize.color.a = 0.75;
+            msg.color.a = 0.75;
 
-            obs_visualize.scale.x = 0.05;
-            
+            msg.scale.x = 0.05;
+
             // Create the vertices line list
             for (auto &vert_pair : vect_vert)
             {
@@ -314,11 +328,9 @@ class RvizVisualizer : public rclcpp::Node
                 p1.z = vert_pair.first.z();
                 p2.z = vert_pair.second.z();
 
-                obs_visualize.points.push_back(p1);
-                obs_visualize.points.push_back(p2);
+                msg.points.push_back(p1);
+                msg.points.push_back(p2);
             }
-            
-            obstacle_publisher->publish(obs_visualize);
         }
 
     public:
@@ -331,12 +343,21 @@ class RvizVisualizer : public rclcpp::Node
             text_publisher = this->create_publisher<OverlayText>("rviz/text", 10);
             
             obstacle_publisher = this->create_publisher<Marker>("rviz/obstacles", 10);
+            orca_obstacle_publisher = this->create_publisher<Marker>("rviz/orca", 10);
+            visibility_obstacle_publisher = this->create_publisher<Marker>("rviz/visibility", 10);
 
             visualizing_timer = this->create_wall_timer(
                 1000ms, std::bind(&RvizVisualizer::visualizing_timer_callback, this));
         
             this->declare_parameter("mesh_path", "");
             this->declare_parameter("concave_obstacles", false);
+            this->declare_parameter("visibility_expansion_factor", 1.0);
+            this->declare_parameter("orca_static_expansion_factor", 1.0);
+
+            visibility_expansion_factor = 
+                this->get_parameter("visibility_expansion_factor").get_parameter_value().get<double>();
+            orca_static_expansion_factor = 
+                this->get_parameter("orca_static_expansion_factor").get_parameter_value().get<double>();
             
             mesh_path = 
                 this->get_parameter("mesh_path").get_parameter_value().get<std::string>();
@@ -349,9 +370,27 @@ class RvizVisualizer : public rclcpp::Node
                 node_parameters_iface->get_parameter_overrides();
 
             load_april_tags(parameter_overrides, april_tags, 0.0, true);
+            // actual map
             load_obstacle_map(
-                parameter_overrides, 1.0, global_obstacle_list,
+                parameter_overrides, 0.0, global_obstacle_list,
                 concave_obstacles);
+            obstacles_to_vertices_vector(
+                global_obstacle_list, global_obs_visualize, 
+                Eigen::Vector3d(1.0, 1.0, 1.0), 1);
+            // visibility map
+            load_obstacle_map(
+                parameter_overrides, visibility_expansion_factor, 
+                visibility_obstacle_list, concave_obstacles);
+            obstacles_to_vertices_vector(
+                visibility_obstacle_list, visibility_obs_visualize, 
+                Eigen::Vector3d(0.0, 1.0, 1.0), 2);
+            // visibility map
+            load_obstacle_map(
+                parameter_overrides, orca_static_expansion_factor, 
+                orca_obstacle_list, concave_obstacles);
+            obstacles_to_vertices_vector(
+                orca_obstacle_list, orca_obs_visualize, 
+                Eigen::Vector3d(1.0, 1.0, 0.0), 3);
 
             agent_state_subscriber = 
                 this->create_subscription<AgentsStateFeedback>("agents",

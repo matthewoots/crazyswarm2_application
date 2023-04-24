@@ -60,14 +60,14 @@ void cs2::cs2_application::user_callback(
             }
 
             // only do visibility when obs are not empty
-            if (!global_obstacle_map.obs.empty() && !copy.is_external)
+            if (!visibility_obstacle_map.obs.empty() && !copy.is_external)
             {
-                global_obstacle_map.start_end.first = 
+                visibility_obstacle_map.start_end.first = 
                     iterator_states->second.transform.translation();
-                global_obstacle_map.start_end.second = 
+                visibility_obstacle_map.start_end.second = 
                     Eigen::Vector3d(copy.goal.x, copy.goal.y, copy.goal.z);
                 std::string frame = "nwu";
-                visibility_graph::visibility vg(global_obstacle_map, frame, 1);
+                visibility_graph::visibility vg(visibility_obstacle_map, frame, 1);
 
                 RCLCPP_INFO(this->get_logger(), "conducting visibility");
                 if (concave_obstacles)

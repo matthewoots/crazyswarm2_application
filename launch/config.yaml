@@ -19,31 +19,34 @@
 queue_size: 20
 # add in the environment file name here
 # environment_file: ""
-environment_file: "safmc.yaml"
-# environment_file: "hall.yaml"
-external_timeout: 15.0
+# environment_file: "safmc.yaml"
+environment_file: "lab.yaml"
+external_timeout: 4.0
 # 1 corrugated board: length(x) 1.22, width(y) 2.454, 
 # together (2 corrugated board + A3): length(x) 2.737, width(y) 2.454
 # offset_agents: [0.0, 0.0]
 # offset_agents: [-2.265, 0.0]
-offset_agents: [4.632, -7.273]
-obstacle_expansion_factor: 3.5
+offset_agents: [4.57, -6.725]
+radio_connection_timeout: 2.00
+visibility_expansion_factor: 0.18
+orca_static_expansion_factor: 0.35
+move_land_tolerance: 3.0
 concave_obstacles: true
 trajectory_parameters:
-  max_velocity: 0.6
-  maximum_yaw_change: 3.0
-  reached_threshold: 0.250
+  max_velocity: 0.55
+  maximum_yaw_change: 4.0
+  reached_threshold: 0.275
   takeoff_land_velocity: 0.6
   takeoff_height: 1.0
   planning_rate: 8.0
-  communication_radius: 4.0
-  protected_zone: 0.30
+  communication_radius: 3.0
+  protected_zone: 0.275
   planning_horizon_scale: 3.0
   height_range: [0.5, 2.0]
 april_tag_parameters:
   # 45 degs pointing downwards
   camera_rotation: [ 0, 0.3826834, 0, 0.9238795 ] # x,y,z,w
-  time_threshold: 0.020
+  time_threshold: 0.025
   observation_threshold: 1.82
   observation_limit: 1
   is_z_out: true

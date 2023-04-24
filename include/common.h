@@ -190,7 +190,7 @@ namespace common
 
     std::vector<visibility_graph::obstacle> generate_disjointed_wall(
         std::vector<Eigen::Vector2d> vertices, std::pair<double, double> height_pair,
-        double thickness, double factor);
+        double thickness);
     
     void load_april_tags(
         std::map<std::string, rclcpp::ParameterValue> parameter_overrides,

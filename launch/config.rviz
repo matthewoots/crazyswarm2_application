@@ -91,9 +91,166 @@ Visualization Manager:
         id007: true
         id008: true
         id009: true
+        id010: true
+        id011: true
+        id012: true
+        id013: true
+        id014: true
+        id015: true
+        id016: true
+        id017: true
+        id018: true
+        id019: true
+        id020: true
+        id021: true
+        id022: true
+        id023: true
+        id024: true
+        id025: true
+        id026: true
+        id027: true
+        id028: true
+        id029: true
+        id030: true
+        id031: true
+        id032: true
+        id033: true
+        id034: true
+        id035: true
+        id036: true
+        id037: true
+        id038: true
+        id039: true
+        id040: true
+        id041: true
+        id042: true
+        id043: true
+        id044: true
+        id045: true
+        id046: true
+        id047: true
+        id048: true
+        id049: true
         id050: true
         id051: true
         id052: true
+        id053: true
+        id054: true
+        id055: true
+        id056: true
+        id057: true
+        id060: true
+        id061: true
+        id062: true
+        id063: true
+        id064: true
+        id065: true
+        id066: true
+        id067: true
+        id068: true
+        id069: true
+        id070: true
+        id071: true
+        id072: true
+        id073: true
+        id074: true
+        id075: true
+        id076: true
+        id077: true
+        id078: true
+        id079: true
+        id080: true
+        id081: true
+        id082: true
+        id083: true
+        id084: true
+        id085: true
+        id086: true
+        id087: true
+        id088: true
+        id089: true
+        id090: true
+        id091: true
+        id092: true
+        id093: true
+        id094: true
+        id095: true
+        id096: true
+        id097: true
+        id098: true
+        id099: true
+        id100: true
+        id101: true
+        id102: true
+        id103: true
+        id104: true
+        id105: true
+        id106: true
+        id107: true
+        id108: true
+        id109: true
+        id110: true
+        id111: true
+        id112: true
+        id113: true
+        id114: true
+        id115: true
+        id116: true
+        id117: true
+        id118: true
+        id119: true
+        id120: true
+        id121: true
+        id122: true
+        id123: true
+        id124: true
+        id125: true
+        id126: true
+        id127: true
+        id128: true
+        id129: true
+        id130: true
+        id131: true
+        id132: true
+        id133: true
+        id134: true
+        id135: true
+        id136: true
+        id137: true
+        id138: true
+        id139: true
+        id140: true
+        id141: true
+        id142: true
+        id143: true
+        id144: true
+        id145: true
+        id146: true
+        id147: true
+        id148: true
+        id149: true
+        id150: true
+        id151: true
+        id152: true
+        id153: true
+        id154: true
+        id155: true
+        id156: true
+        id157: true
+        id158: true
+        id159: true
+        id160: true
+        id161: true
+        id162: true
+        id163: true
+        id164: true
+        id165: true
+        id166: true
+        id167: true
+        id168: true
+        id169: true
+        id170: true
+        id171: true
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -165,6 +322,32 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /rviz/obstacles
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: orca
+      Namespaces:
+        "": true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /rviz/orca
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: visibility
+      Namespaces:
+        "": true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /rviz/visibility
       Value: true
   Enabled: true
   Global Options:

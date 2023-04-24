@@ -153,12 +153,11 @@ std::vector<std::string> common::split_space_delimiter(
 std::vector<visibility_graph::obstacle> common::generate_disjointed_wall(
     std::vector<Eigen::Vector2d> vertices, 
     std::pair<double, double> height_pair,
-    double thickness, double factor)
+    double thickness)
 {
     std::vector<visibility_graph::obstacle> obs_vector;
 
     double half_thickness = thickness / 2.0;
-    double half_original_thickness = (thickness/factor) / 2.0;
 
     if (vertices.size() < 2)
         return obs_vector;
@@ -172,10 +171,10 @@ std::vector<visibility_graph::obstacle> common::generate_disjointed_wall(
     
     base_vertices.emplace_back(
         vertices[0] + perpendicular_direction * half_thickness 
-        - direction * half_original_thickness * ((factor > 1.0) ? 1.0 : 0.0));
+        - direction * half_thickness);
     base_vertices.emplace_back(
         vertices[0] - perpendicular_direction * half_thickness
-        - direction * half_original_thickness * ((factor > 1.0) ? 1.0 : 0.0));
+        - direction * half_thickness);
     
     Eigen::Vector3d north = Eigen::Vector3d(1.0, 0.0, 0.0);
 
@@ -219,10 +218,10 @@ std::vector<visibility_graph::obstacle> common::generate_disjointed_wall(
     
     base_vertices.emplace_back(
         vertices[vertices.size()-1] + perpendicular_direction * half_thickness
-        + direction * half_original_thickness * ((factor > 1.0) ? 1.0 : 0.0));
+        + direction * half_thickness);
     base_vertices.emplace_back(
         vertices[vertices.size()-1] - perpendicular_direction * half_thickness
-        + direction * half_original_thickness * ((factor > 1.0) ? 1.0 : 0.0));
+        + direction * half_thickness);
 
     for (size_t i = 0; i < base_vertices.size()/2 - 1; i++)
     {
@@ -365,7 +364,7 @@ void common::load_obstacle_map(
 
         std::vector<visibility_graph::obstacle> obstacle_list =
             generate_disjointed_wall(vertices, 
-            std::make_pair(height_list[0], height_list[1]), thickness * factor, factor);
+            std::make_pair(height_list[0], height_list[1]), thickness + factor);
         
         if (!concave)
         {

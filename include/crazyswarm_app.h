@@ -117,7 +117,9 @@ namespace cs2
 
                 // declare global commands
                 this->declare_parameter("queue_size", 1);
-                this->declare_parameter("obstacle_expansion_factor", 1.0);
+                this->declare_parameter("visibility_expansion_factor", 1.0);
+                this->declare_parameter("orca_static_expansion_factor", 1.0);
+                this->declare_parameter("radio_connection_timeout", 1.0);
                 this->declare_parameter("concave_obstacles", false);
 
                 this->declare_parameter("trajectory_parameters.max_velocity", -1.0);
@@ -166,8 +168,12 @@ namespace cs2
                     this->get_parameter("trajectory_parameters.height_range").get_parameter_value().get<std::vector<double>>();
                 assert(height_range_vector.size() == 2);
 
-                obstacle_expansion_factor = 
-                    this->get_parameter("obstacle_expansion_factor").get_parameter_value().get<double>();
+                radio_connection_timeout = 
+                    this->get_parameter("radio_connection_timeout").get_parameter_value().get<double>();
+                visibility_expansion_factor = 
+                    this->get_parameter("visibility_expansion_factor").get_parameter_value().get<double>();
+                orca_static_expansion_factor = 
+                    this->get_parameter("orca_static_expansion_factor").get_parameter_value().get<double>();
                 std::vector<double> camera_rotation = 
                     this->get_parameter("april_tag_parameters.camera_rotation").get_parameter_value().get<std::vector<double>>();
                 time_threshold = 
@@ -249,14 +255,14 @@ namespace cs2
                     tmp.emergency = this->create_client<Empty>(name + "/emergency");
                     
                     pose_sub.insert({name, this->create_subscription<PoseStamped>(
-                        name + "/pose", 7, pcallback)});
+                        name + "/pose", 14, pcallback)});
                     vel_sub.insert({name, this->create_subscription<Twist>(
-                        name + "/vel", 7, vcallback)});
+                        name + "/vel", 14, vcallback)});
                     tag_sub.insert({name, this->create_subscription<AprilTagDetectionArray>(
-                        name + "/tag", 7, tcallback)});
+                        name + "/tag", 14, tcallback)});
 
                     tmp.vel_world_publisher = 
-                        this->create_publisher<VelocityWorld>(name + "/cmd_velocity_world", 10);
+                        this->create_publisher<VelocityWorld>(name + "/cmd_velocity_world", 25);
 
                     tag_queue empty = tag_queue();
 
@@ -346,12 +352,18 @@ namespace cs2
                     }
                 }
 
-                std::vector<visibility_graph::obstacle> global_obstacle_list;
+                std::vector<visibility_graph::obstacle> visibility_obstacle_list;
                 load_obstacle_map(
-                    parameter_overrides, obstacle_expansion_factor, 
-                    global_obstacle_list, concave_obstacles);
-                global_obstacle_map.obs = global_obstacle_list;
-                global_obstacle_map.inflation = protected_zone;
+                    parameter_overrides, visibility_expansion_factor, 
+                    visibility_obstacle_list, concave_obstacles);
+                visibility_obstacle_map.obs = visibility_obstacle_list;
+                visibility_obstacle_map.inflation = protected_zone;
+                std::vector<visibility_graph::obstacle> orca_obstacle_list;
+                load_obstacle_map(
+                    parameter_overrides, orca_static_expansion_factor, 
+                    orca_obstacle_list, concave_obstacles);
+                orca_obstacle_map.obs = orca_obstacle_list;
+                orca_obstacle_map.inflation = protected_zone;
 
                 pose_publisher = 
                     this->create_publisher<NamedPoseArray>("poses", 7);
@@ -363,13 +375,13 @@ namespace cs2
                     this->create_publisher<AgentsStateFeedback>("agents", 7);
 
                 subscription_user = 
-                    this->create_subscription<UserCommand>("user", 20, std::bind(&cs2_application::user_callback, this, _1));
+                    this->create_subscription<UserCommand>("user", 30, std::bind(&cs2_application::user_callback, this, _1));
 
                 takeoff_all_client = this->create_client<Takeoff>("/all/takeoff");
                 land_all_client = this->create_client<Land>("/all/land");
 
                 tag_timer = this->create_wall_timer(
-                    200ms, std::bind(&cs2_application::tag_timer_callback, this));
+                    100ms, std::bind(&cs2_application::tag_timer_callback, this));
 
                 auto t_planning = (1/planning_rate) * 1000ms;
                 handler_timer = this->create_wall_timer(
@@ -407,7 +419,10 @@ namespace cs2
             double time_threshold;
             double observation_threshold;
             double tag_edge_size;
-            double obstacle_expansion_factor;
+            double visibility_expansion_factor;
+            double orca_static_expansion_factor;
+
+            double radio_connection_timeout;
 
             int observation_limit;
 
@@ -419,7 +434,8 @@ namespace cs2
 
             Eigen::Affine3d static_camera_transform;
 
-            visibility_graph::global_map global_obstacle_map;
+            visibility_graph::global_map visibility_obstacle_map;
+            visibility_graph::global_map orca_obstacle_map;
 
             rclcpp::Client<Takeoff>::SharedPtr takeoff_all_client;
             rclcpp::Client<Land>::SharedPtr land_all_client;

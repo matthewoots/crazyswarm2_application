@@ -71,10 +71,10 @@ void cs2::cs2_application::conduct_planning(
 
     // add in the static obstacles as static neighbours
     // find the obstacles that lie on the plane first
-    if (!global_obstacle_map.obs.empty())
+    if (!orca_obstacle_map.obs.empty())
     {
         float communication_radius_float = (float)communication_radius;
-        visibility_graph::global_map copy = global_obstacle_map;
+        visibility_graph::global_map copy = orca_obstacle_map;
         copy.start_end.first = state.transform.translation();
         copy.t = visibility_graph::get_affine_transform(
             copy.start_end.first, Eigen::Vector3d(0.0, 0.0, 0.0), "nwu");
@@ -89,7 +89,6 @@ void cs2::cs2_application::conduct_planning(
         // threshold is communication_radius
         for (auto &poly : rot_polygons)
         {
-            size_t count = 0;
             for (size_t i = 0; i < poly.v.size(); i++)
             {
                 size_t j = (i + 1) % (poly.v.size());
@@ -112,14 +111,18 @@ void cs2::cs2_application::conduct_planning(
 
                     for (size_t j = 1; j < div-1; j++)
                     {
-                        Eval_agent static_point;
-                        static_point.position_ = (vi + dir * j * separation).cast<float>();
-                        static_point.velocity_ = Eigen::Vector3f::Zero();
-                        static_point.radius_ = (float)protected_zone/3;
-                        it->second.insertAgentNeighbor(static_point, communication_radius_float);
+                        Eigen::Vector3d pos = vi + dir * j * separation;
+                        
+                        if ((pos - state.transform.translation()).norm() < communication_radius)
+                        {
+                            Eval_agent static_point;
+                            static_point.position_ = pos.cast<float>();
+                            static_point.velocity_ = Eigen::Vector3f::Zero();
+                            static_point.radius_ = (float)protected_zone/3;
+                            it->second.insertAgentNeighbor(static_point, communication_radius_float);
+                        }
                         // std::cout << mykey << " obstacle_static " << static_point.position_.transpose() << std::endl;
                     }
-                    count++;
                 }
             }
         }
@@ -304,7 +307,10 @@ void cs2::cs2_application::handler_timer_callback()
                 {
                     yaw_target = std::min(std::abs(yaw_target), maximum_yaw_change);                
                     yaw_target *= dir;
-                    yaw_target += rpy.z() * rad_to_deg;
+                    if (std::abs(yaw_target - agent.target_yaw) > maximum_yaw_change * 1.5)
+                        yaw_target += rpy.z() * rad_to_deg;
+                    else
+                        yaw_target = agent.target_yaw;
                 }
                 else
                     yaw_target += rpy.z() * rad_to_deg;
@@ -373,6 +379,8 @@ void cs2::cs2_application::handler_timer_callback()
         AgentState agentstate;
         agentstate.id = key;
         agentstate.flight_state = agent.flight_state;
+        agent.radio_connection = 
+            ((clock.now() - agent.t).seconds() < radio_connection_timeout);
         agentstate.connected = agent.radio_connection;
         agentstate.completed = agent.completed;
         agentstate.mission_capable = agent.mission_capable;
